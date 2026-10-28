@@ -533,9 +533,8 @@ function houseNumber(address) {
 }
 
 function addHouseNumber(stop, position, abovePin = false) {
-  if (addressDataLoaded) return;
   const number = houseNumber(stop.address);
-  if (!number || map.getZoom() < 18) return;
+  if (!number || map.getZoom() < 17) return;
   const icon = L.divIcon({
     className: 'house-number-shell',
     iconSize: [46, 22],
