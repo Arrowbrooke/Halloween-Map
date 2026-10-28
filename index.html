@@ -9,7 +9,7 @@
   <link rel="icon" href="icon.svg">
   <link rel="stylesheet" href="vendor/leaflet.css">
   <link rel="stylesheet" href="vendor/maplibre-gl.css">
-  <link rel="stylesheet" href="style.css?v=20261028-public">
+  <link rel="stylesheet" href="style.css?v=20261028-search">
 </head>
 <body>
   <main>
@@ -18,9 +18,10 @@
     <header class="search-panel">
       <div class="search-box">
         <span class="pumpkin" aria-hidden="true">🎃</span>
-        <input id="search" type="search" placeholder="Search Halloween stops" aria-label="Search stops">
+        <input id="search" type="search" placeholder="Search an address or street" aria-label="Search addresses, streets, and participating homes" autocomplete="street-address" aria-controls="search-results" aria-expanded="false">
         <button id="share" class="icon-button" aria-label="Share map" title="Share map">↗</button>
       </div>
+      <div id="search-results" class="search-results" role="listbox" aria-label="Address search results" hidden></div>
       <div class="filters" aria-label="Filter stops">
         <button class="chip active" data-category="all" aria-pressed="true">All stops</button>
         <button class="chip" data-category="candy" aria-pressed="false"><i class="dot candy"></i>Kids’ candy</button>
@@ -106,6 +107,6 @@
   <script src="vendor/leaflet-maplibre-gl.js"></script>
   <script src="vendor/supabase.js"></script>
   <script src="config.js"></script>
-  <script src="app.js?v=20261028-public" type="module"></script>
+  <script src="app.js?v=20261028-search" type="module"></script>
 </body>
 </html>

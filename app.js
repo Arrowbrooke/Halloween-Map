@@ -30,6 +30,9 @@ let db = null;
 let currentUserId = null;
 let chosenLocation = null;
 let userMarker = null;
+let searchMarker = null;
+let searchTimer = null;
+let searchRequest = 0;
 
 function toast(message) {
   $('#toast').textContent = message;
@@ -44,6 +47,30 @@ function status(message, live = false) {
 }
 
 const map = L.map('map', { zoomControl: false }).setView(config.center, config.zoom);
+map.createPane('focusFogPane');
+map.getPane('focusFogPane').style.zIndex = 320;
+map.getPane('focusFogPane').style.pointerEvents = 'none';
+
+if (Array.isArray(config.focusBoundary) && config.focusBoundary.length > 2) {
+  const world = [[85, -180], [85, 180], [-85, 180], [-85, -180]];
+  L.polygon([world, config.focusBoundary], {
+    pane: 'focusFogPane',
+    interactive: false,
+    stroke: false,
+    fillColor: '#0b0712',
+    fillOpacity: 0.46,
+    className: 'focus-fog'
+  }).addTo(map);
+  L.polyline([...config.focusBoundary, config.focusBoundary[0]], {
+    pane: 'focusFogPane',
+    interactive: false,
+    color: '#7185ff',
+    weight: 2,
+    opacity: 0.68,
+    className: 'focus-boundary'
+  }).addTo(map);
+}
+
 let tileWarning = false;
 let streetMap = null;
 const mapWarning = () => {
@@ -59,12 +86,38 @@ try {
   }).addTo(map);
   streetMap = vectorTiles.getMaplibreMap();
   streetMap.on('error', mapWarning);
+  streetMap.on('load', ensureBaseHouseNumbers);
 } catch {
   L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
     maxZoom: 19,
     className: 'fallback-tiles',
     attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
   }).addTo(map).on('tileerror', mapWarning);
+}
+
+function ensureBaseHouseNumbers() {
+  if (!streetMap || !streetMap.isStyleLoaded() || streetMap.getLayer('house-number-labels')) return;
+  const firstSymbol = streetMap.getStyle().layers.find((layer) => layer.type === 'symbol')?.id;
+  streetMap.addLayer({
+    id: 'house-number-labels',
+    type: 'symbol',
+    source: 'openmaptiles',
+    'source-layer': 'housenumber',
+    minzoom: 17,
+    layout: {
+      'text-field': ['to-string', ['get', 'housenumber']],
+      'text-font': ['Noto Sans Regular'],
+      'text-size': ['interpolate', ['linear'], ['zoom'], 17, 8, 19, 11],
+      'text-allow-overlap': false,
+      'text-padding': 1
+    },
+    paint: {
+      'text-color': '#fff0d8',
+      'text-halo-color': '#2a2035',
+      'text-halo-width': 1.2,
+      'text-halo-blur': 0.3
+    }
+  }, firstSymbol);
 }
 
 const markers = L.layerGroup().addTo(map);
@@ -107,6 +160,88 @@ function addHouseNumber(stop, position, abovePin = false) {
     html: `<span class="house-number">${escapeHtml(number)}</span>`
   });
   L.marker(position, { icon, interactive: false, keyboard: false, zIndexOffset: 1000 }).addTo(markers);
+}
+
+function hideSearchResults() {
+  $('#search-results').hidden = true;
+  $('#search').setAttribute('aria-expanded', 'false');
+}
+
+function searchResultLabel(properties) {
+  const street = properties.street || (properties.osm_key === 'highway' ? properties.name : '');
+  const title = [properties.housenumber, street].filter(Boolean).join(' ') || properties.name || street;
+  if (!title) return null;
+  const place = [properties.city || properties.locality || properties.district, properties.state].filter(Boolean).join(', ');
+  return { title, subtitle: place || (properties.housenumber ? 'Address' : 'Street') };
+}
+
+function insideFocusBoundary(lat, lng) {
+  const polygon = config.focusBoundary;
+  if (!Array.isArray(polygon) || polygon.length < 3) return inNeighborhood(lat, lng);
+  let inside = false;
+  for (let current = 0, previous = polygon.length - 1; current < polygon.length; previous = current++) {
+    const [currentLat, currentLng] = polygon[current];
+    const [previousLat, previousLng] = polygon[previous];
+    if (((currentLng > lng) !== (previousLng > lng)) &&
+      (lat < (previousLat - currentLat) * (lng - currentLng) / (previousLng - currentLng) + currentLat)) inside = !inside;
+  }
+  return inside;
+}
+
+function showSearchResults(results, message = '') {
+  const panel = $('#search-results');
+  if (message) panel.innerHTML = `<div class="search-result-status">${escapeHtml(message)}</div>`;
+  else panel.innerHTML = results.map((result, index) => `<button class="search-result" role="option" data-result="${index}"><strong>${escapeHtml(result.title)}</strong><small>${escapeHtml(result.subtitle)}</small></button>`).join('');
+  panel.hidden = false;
+  $('#search').setAttribute('aria-expanded', 'true');
+  panel._results = results;
+}
+
+async function searchAddresses(query) {
+  const request = ++searchRequest;
+  showSearchResults([], 'Searching ArrowBrooke addressesâ€¦');
+  try {
+    const url = new URL(config.addressSearchUrl);
+    url.searchParams.set('q', query);
+    url.searchParams.set('lat', config.center[0]);
+    url.searchParams.set('lon', config.center[1]);
+    url.searchParams.set('bbox', '-96.909,33.240,-96.891,33.254');
+    url.searchParams.set('limit', '12');
+    url.searchParams.set('lang', 'en');
+    const response = await fetch(url, { credentials: 'omit', referrerPolicy: 'strict-origin-when-cross-origin' });
+    if (!response.ok) throw new Error('Search unavailable');
+    const data = await response.json();
+    if (request !== searchRequest || $('#search').value.trim() !== query) return;
+    const seen = new Set();
+    const results = (data.features || []).map((feature) => {
+      const coordinates = feature.geometry?.coordinates;
+      const label = searchResultLabel(feature.properties || {});
+      if (!label || !coordinates || !insideFocusBoundary(coordinates[1], coordinates[0])) return null;
+      const key = label.title.toLowerCase();
+      if (seen.has(key)) return null;
+      seen.add(key);
+      return { ...label, lat: coordinates[1], lng: coordinates[0], isHouse: Boolean(feature.properties?.housenumber) };
+    }).filter(Boolean).slice(0, 8);
+    showSearchResults(results, results.length ? '' : 'No matching ArrowBrooke address or street was found.');
+  } catch {
+    if (request === searchRequest) showSearchResults([], 'Address search is temporarily unavailable.');
+  }
+}
+
+function selectSearchResult(result) {
+  $('#search').value = result.title;
+  hideSearchResults();
+  closeDetail();
+  render();
+  if (searchMarker) searchMarker.remove();
+  searchMarker = L.marker([result.lat, result.lng], {
+    icon: L.divIcon({ className: 'search-location', iconSize: [20, 20], iconAnchor: [10, 10], html: '<span></span>' }),
+    interactive: false,
+    keyboard: false,
+    zIndexOffset: 1200
+  }).addTo(map);
+  map.setView([result.lat, result.lng], result.isHouse ? 19 : 17);
+  toast(result.isHouse ? 'Address found. Use Add my house to submit this location.' : 'Street found. Zoom in to choose a home.');
 }
 
 function pinIcon(stop) {
@@ -394,7 +529,27 @@ $('.filters').onclick = (event) => {
   closeDetail();
   render();
 };
-$('#search').oninput = () => { closeDetail(); render(); };
+$('#search').oninput = () => {
+  closeDetail();
+  render();
+  clearTimeout(searchTimer);
+  const query = $('#search').value.trim();
+  if (query.length < 2 || !config.addressSearchUrl) { searchRequest += 1; hideSearchResults(); return; }
+  searchTimer = setTimeout(() => searchAddresses(query), 300);
+};
+$('#search').onkeydown = (event) => {
+  if (event.key === 'Escape') hideSearchResults();
+  if (event.key === 'ArrowDown' && !$('#search-results').hidden) { event.preventDefault(); $('#search-results').querySelector('button')?.focus(); }
+  if (event.key === 'Enter' && !$('#search-results').hidden) {
+    const first = $('#search-results')._results?.[0];
+    if (first) { event.preventDefault(); selectSearchResult(first); }
+  }
+};
+$('#search-results').onclick = (event) => {
+  const button = event.target.closest('[data-result]');
+  if (button) selectSearchResult($('#search-results')._results[Number(button.dataset.result)]);
+};
+document.addEventListener('click', (event) => { if (!event.target.closest('.search-panel')) hideSearchResults(); });
 $('#explore-tab').onclick = () => setSheet(true);
 $('#home').onclick = () => map.setView(config.center, config.zoom);
 $('#zoom-in').onclick = () => map.zoomIn();
