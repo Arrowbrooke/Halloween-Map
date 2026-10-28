@@ -1056,6 +1056,10 @@ $('#stop-form').onsubmit = async (event) => {
     event.target.reset();
     chosenLocation = null;
     chosenAddressKey = '';
+    if (searchMarker) {
+      searchMarker.remove();
+      searchMarker = null;
+    }
     addressRequest += 1;
     lastSuggestedAddress = '';
     $('#address-help').textContent = 'Choose a spot on the map, or type the address yourself.';
@@ -1064,6 +1068,7 @@ $('#stop-form').onsubmit = async (event) => {
     formAddressOptions.hidden = true;
     filter.clear();
     $('#search').value = '';
+    hideSearchResults();
     syncFilters();
     render();
     if (demo) showDetail(id);
