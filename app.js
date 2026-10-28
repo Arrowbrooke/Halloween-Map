@@ -235,15 +235,6 @@ function ensureMapEnhancements() {
         }
       }
     });
-    streetMap.addSource('arrowbrooke-fog-edge', {
-      type: 'geojson',
-      data: {
-        type: 'Feature',
-        properties: {},
-        geometry: { type: 'LineString', coordinates: organicEdge }
-      }
-    });
-
     const fogSize = 512;
     const fogCanvas = document.createElement('canvas');
     fogCanvas.width = fogSize;
@@ -286,39 +277,6 @@ function ensureMapEnhancements() {
         'fill-translate-anchor': 'map'
       }
     });
-    streetMap.addLayer({
-      id: 'arrowbrooke-low-zoom-haze',
-      type: 'line',
-      source: 'arrowbrooke-focus',
-      maxzoom: 15.5,
-      layout: { 'line-join': 'round', 'line-cap': 'round' },
-      paint: { 'line-color': '#f6fafc', 'line-width': 20, 'line-blur': 13, 'line-opacity': 0.14 }
-    });
-    streetMap.addLayer({
-      id: 'arrowbrooke-fog-feather-wide',
-      type: 'line',
-      source: 'arrowbrooke-fog-edge',
-      minzoom: 15.1,
-      layout: { 'line-join': 'round', 'line-cap': 'round' },
-      paint: { 'line-color': '#f4f9fb', 'line-width': 78, 'line-blur': 34, 'line-opacity': 0.12 }
-    });
-    streetMap.addLayer({
-      id: 'arrowbrooke-fog-feather-mid',
-      type: 'line',
-      source: 'arrowbrooke-fog-edge',
-      minzoom: 15.1,
-      layout: { 'line-join': 'round', 'line-cap': 'round' },
-      paint: { 'line-color': '#f7fbfc', 'line-width': 38, 'line-blur': 18, 'line-opacity': 0.16 }
-    });
-    streetMap.addLayer({
-      id: 'arrowbrooke-fog-feather-soft',
-      type: 'line',
-      source: 'arrowbrooke-fog-edge',
-      minzoom: 15.1,
-      layout: { 'line-join': 'round', 'line-cap': 'round' },
-      paint: { 'line-color': '#ffffff', 'line-width': 16, 'line-blur': 9, 'line-opacity': 0.11 }
-    });
-
     if (!matchMedia('(prefers-reduced-motion: reduce)').matches) {
       let fogLastFrame = 0;
       const animateFog = (time) => {
