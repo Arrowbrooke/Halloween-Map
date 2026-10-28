@@ -832,6 +832,10 @@ $('#search').oninput = () => {
   render();
   clearTimeout(searchTimer);
   const query = $('#search').value.trim();
+  if (!query && searchMarker) {
+    searchMarker.remove();
+    searchMarker = null;
+  }
   if (query.length < 2) { searchRequest += 1; hideSearchResults(); return; }
   searchTimer = setTimeout(() => searchAddresses(query), 300);
 };
