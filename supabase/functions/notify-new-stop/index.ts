@@ -1,4 +1,4 @@
-import webpush from 'npm:web-push@3.6.7';
+import { ApplicationServer, PushMessageError, Urgency } from 'jsr:@negrel/webpush@0.5.0';
 import { createClient } from 'npm:@supabase/supabase-js@2';
 
 type StopRecord = {
@@ -19,6 +19,36 @@ const json = (body: unknown, status = 200) => new Response(JSON.stringify(body),
   status,
   headers: { 'Content-Type': 'application/json' }
 });
+
+function decodeBase64Url(value: string) {
+  const normalized = value.replace(/-/g, '+').replace(/_/g, '/');
+  const padded = normalized.padEnd(Math.ceil(normalized.length / 4) * 4, '=');
+  return Uint8Array.from(atob(padded), (character) => character.charCodeAt(0));
+}
+
+function encodeBase64Url(value: Uint8Array) {
+  return btoa(String.fromCharCode(...value))
+    .replace(/\+/g, '-')
+    .replace(/\//g, '_')
+    .replace(/=+$/g, '');
+}
+
+async function importVapidKeys(publicKey: string, privateKey: string): Promise<CryptoKeyPair> {
+  const rawPublicKey = decodeBase64Url(publicKey);
+  if (rawPublicKey.length !== 65 || rawPublicKey[0] !== 4) {
+    throw new Error('VAPID public key is not an uncompressed P-256 key');
+  }
+  const x = encodeBase64Url(rawPublicKey.slice(1, 33));
+  const y = encodeBase64Url(rawPublicKey.slice(33, 65));
+  const algorithm = { name: 'ECDSA', namedCurve: 'P-256' };
+  const publicCryptoKey = await crypto.subtle.importKey(
+    'jwk', { kty: 'EC', crv: 'P-256', x, y, ext: true }, algorithm, true, ['verify']
+  );
+  const privateCryptoKey = await crypto.subtle.importKey(
+    'jwk', { kty: 'EC', crv: 'P-256', x, y, d: privateKey, ext: true }, algorithm, false, ['sign']
+  );
+  return { publicKey: publicCryptoKey, privateKey: privateCryptoKey };
+}
 
 Deno.serve(async (request) => {
   if (request.method !== 'POST') return json({ error: 'Method not allowed' }, 405);
@@ -42,7 +72,16 @@ Deno.serve(async (request) => {
     return json({ error: 'Notification secrets are incomplete' }, 500);
   }
 
-  webpush.setVapidDetails('https://arrowbrooke.github.io/Halloween-Map/', publicKey, privateKey);
+  let appServer: ApplicationServer;
+  try {
+    appServer = await ApplicationServer.new({
+      contactInformation: 'https://arrowbrooke.github.io/Halloween-Map/',
+      vapidKeys: await importVapidKeys(publicKey, privateKey)
+    });
+  } catch (keyError) {
+    console.error('Web Push VAPID setup failed', keyError);
+    return json({ error: 'Notification key setup failed' }, 500);
+  }
   const supabase = createClient(supabaseUrl, serviceKey, { auth: { persistSession: false } });
   const { data: subscriptions, error } = await supabase
     .from('push_subscriptions')
@@ -66,15 +105,15 @@ Deno.serve(async (request) => {
   const expired: string[] = [];
   await Promise.all((subscriptions || []).map(async (subscription) => {
     try {
-      await webpush.sendNotification({
+      await appServer.subscribe({
         endpoint: subscription.endpoint,
         keys: { p256dh: subscription.p256dh, auth: subscription.auth }
-      }, message, { TTL: 86400 });
+      }).pushTextMessage(message, { ttl: 86400, urgency: Urgency.High });
       delivered += 1;
     } catch (pushError) {
-      const statusCode = Number((pushError as { statusCode?: number }).statusCode || 0);
+      const statusCode = pushError instanceof PushMessageError ? pushError.response.status : 0;
       if (statusCode === 404 || statusCode === 410) expired.push(subscription.endpoint);
-      else console.error('Web Push delivery failed', statusCode);
+      else console.error('Web Push delivery failed', statusCode, String(pushError));
     }
   }));
 

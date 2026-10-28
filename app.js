@@ -33,6 +33,9 @@ let currentUserId = null;
 let chosenLocation = null;
 let chosenAddressKey = '';
 let userMarker = null;
+let userLocationWatchId = null;
+let lastUserLatLng = null;
+let selectedLocationIcon = localStorage.getItem('arrowbrooke-location-icon') || '🎃';
 let searchMarker = null;
 let searchTimer = null;
 let searchRequest = 0;
@@ -1271,20 +1274,95 @@ $('#home').onclick = () => showWholeNeighborhood(true);
 $('#zoom-in').onclick = () => map.zoomIn();
 $('#zoom-out').onclick = () => map.zoomOut();
 $('#share').onclick = () => share();
-$('#locate').onclick = () => {
+const locationDialog = $('#location-dialog');
+
+function locationMarkerIcon(icon = selectedLocationIcon) {
+  return L.divIcon({
+    className: 'halloween-location-shell',
+    iconSize: [48, 48],
+    iconAnchor: [24, 24],
+    html: `<span class="halloween-location-icon" aria-hidden="true">${escapeHtml(icon)}</span>`
+  });
+}
+
+function refreshLocationControls() {
+  document.querySelectorAll('[data-location-icon]').forEach((button) => {
+    button.setAttribute('aria-pressed', String(button.dataset.locationIcon === selectedLocationIcon));
+  });
+  const active = userLocationWatchId !== null;
+  $('#start-location').hidden = active;
+  $('#stop-location').hidden = !active;
+  $('#locate').classList.toggle('location-live', active);
+  $('#locate').textContent = active ? selectedLocationIcon : '◎';
+  $('#location-status').textContent = active
+    ? 'Live location is on. Your marker will keep moving while this map is open.'
+    : 'Choose an icon, then allow location access.';
+}
+
+function updateUserLocation(position) {
+  const latlng = [position.coords.latitude, position.coords.longitude];
+  const firstFix = !lastUserLatLng;
+  lastUserLatLng = latlng;
+  if (!userMarker) {
+    userMarker = L.marker(latlng, { icon: locationMarkerIcon(), zIndexOffset: 1400 })
+      .addTo(map)
+      .bindTooltip('Your live location');
+  } else {
+    userMarker.setLatLng(latlng).setIcon(locationMarkerIcon());
+  }
+  if (firstFix) map.setView(latlng, Math.max(map.getZoom(), 17));
+  refreshLocationControls();
+}
+
+function stopLocationSharing() {
+  if (userLocationWatchId !== null) navigator.geolocation.clearWatch(userLocationWatchId);
+  userLocationWatchId = null;
+  lastUserLatLng = null;
+  if (userMarker) userMarker.remove();
+  userMarker = null;
+  refreshLocationControls();
+}
+
+function startLocationSharing() {
   if (!navigator.geolocation) { toast('Your browser does not support location.'); return; }
-  $('#locate').disabled = true;
-  navigator.geolocation.getCurrentPosition((position) => {
-    const latlng = [position.coords.latitude, position.coords.longitude];
-    if (userMarker) userMarker.remove();
-    userMarker = L.circleMarker(latlng, { radius: 8, color: '#fff', weight: 3, fillColor: '#1a73e8', fillOpacity: 1 }).addTo(map).bindTooltip('You are here');
-    map.setView(latlng, 17);
-    $('#locate').disabled = false;
-  }, () => {
-    toast('Location is unavailable. You can still explore the map or use the home button.');
-    $('#locate').disabled = false;
-  }, { enableHighAccuracy: true, timeout: 12000, maximumAge: 30000 });
+  $('#start-location').disabled = true;
+  $('#location-status').textContent = 'Waiting for your phone’s location…';
+  userLocationWatchId = navigator.geolocation.watchPosition((position) => {
+    $('#start-location').disabled = false;
+    updateUserLocation(position);
+    locationDialog.close();
+  }, (error) => {
+    stopLocationSharing();
+    $('#start-location').disabled = false;
+    $('#location-status').textContent = error.code === 1
+      ? 'Location permission is off. Enable it for this app or browser in your phone settings.'
+      : 'Location is unavailable right now. Try again outdoors or near a window.';
+  }, { enableHighAccuracy: true, timeout: 15000, maximumAge: 5000 });
+}
+
+$('#locate').onclick = () => {
+  refreshLocationControls();
+  locationDialog.showModal();
 };
+$('.close-location').onclick = () => locationDialog.close();
+$('#start-location').onclick = startLocationSharing;
+$('#stop-location').onclick = () => {
+  stopLocationSharing();
+  locationDialog.close();
+  toast('Live location stopped.');
+};
+$('.location-icon-options').onclick = (event) => {
+  const button = event.target.closest('[data-location-icon]');
+  if (!button) return;
+  selectedLocationIcon = button.dataset.locationIcon;
+  localStorage.setItem('arrowbrooke-location-icon', selectedLocationIcon);
+  if (userMarker) userMarker.setIcon(locationMarkerIcon());
+  refreshLocationControls();
+};
+window.addEventListener('pagehide', () => {
+  if (userLocationWatchId !== null) navigator.geolocation.clearWatch(userLocationWatchId);
+});
+refreshLocationControls();
 
 async function loadStops() {
   const { data, error } = await db.from('stops').select('*').eq('event_date', config.eventDate).eq('approval_status', 'approved').order('created_at');

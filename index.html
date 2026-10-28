@@ -117,6 +117,25 @@
     </form>
   </dialog>
 
+  <dialog id="location-dialog">
+    <div class="dialog-top">
+      <div><div class="eyebrow">LIVE MAP COMPANION</div><h2>Choose your map icon</h2></div>
+      <button type="button" class="icon-button close-location" aria-label="Close">×</button>
+    </div>
+    <p class="muted">Your location stays private on this device and updates only while the map is open.</p>
+    <div class="location-icon-options" role="radiogroup" aria-label="Halloween location icon">
+      <button class="location-icon-option" type="button" data-location-icon="🎃" aria-pressed="true"><span>🎃</span>Pumpkin</button>
+      <button class="location-icon-option" type="button" data-location-icon="👻" aria-pressed="false"><span>👻</span>Ghost</button>
+      <button class="location-icon-option" type="button" data-location-icon="🧙" aria-pressed="false"><span>🧙</span>Witch</button>
+      <button class="location-icon-option" type="button" data-location-icon="🦇" aria-pressed="false"><span>🦇</span>Bat</button>
+    </div>
+    <p id="location-status" class="muted" role="status">Choose an icon, then allow location access.</p>
+    <div class="location-sharing-actions">
+      <button id="start-location" class="primary" type="button">Show my live location</button>
+      <button id="stop-location" class="secondary" type="button" hidden>Stop sharing location</button>
+    </div>
+  </dialog>
+
   <dialog id="organizer-dialog">
     <form id="organizer-form">
       <div class="dialog-top">
@@ -153,6 +172,6 @@
   <script src="vendor/leaflet-maplibre-gl.js"></script>
   <script src="vendor/supabase.js"></script>
   <script src="config.js?v=20261028-push-notifications"></script>
-  <script src="app.js?v=20261028-push-notifications" type="module"></script>
+  <script src="app.js?v=20261028-live-halloween-location" type="module"></script>
 </body>
 </html>
