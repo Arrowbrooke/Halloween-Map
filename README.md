@@ -10,7 +10,9 @@ Residents can find a home by typing its address or by placing a pin. Both paths 
 
 ## Neighborhood buildings
 
-`arrowbrooke-buildings.geojson` supplements the base map with building footprints from the Overture Maps 2026-10-21 release. It is clipped to the ArrowBrooke focus area and contains geometry only. The supplemental layer fills gaps in the base map, including newer southwest homes, and uses the same styling and home-highlighting behavior as the existing buildings. Overture Maps building data is licensed under ODbL.
+`arrowbrooke-buildings.geojson` supplements the base map with geometry-only building footprints from the Overture Maps 2026-10-21 release. The layer fills gaps in the base map and uses the same styling and home-highlighting behavior as the existing buildings. Overture Maps building data is licensed under ODbL.
+
+Some newly developed southwest streets have public address points but no footprint geometry in either Overture or the base map. For those streets, the file also contains approximate rectangular footprints centered on the public address points and aligned with neighboring addresses. These estimates are for map display and address selection only; they are not survey-grade building outlines. Regenerate them with `node scripts/add-estimated-building-footprints.mjs` after preparing the Overture file.
 
 Run `node scripts/snap-addresses-to-buildings.mjs --buildings path/to/overture-buildings.geojson --write` after replacing either source dataset to audit and refresh the stored address-label positions.
 

@@ -89,7 +89,7 @@ function status(message, live = false) {
 
 const map = L.map('map', { zoomControl: false }).setView(config.center, config.zoom);
 map.attributionControl.addAttribution('Addresses: <a href="https://openaddresses.io/">OpenAddresses</a> / Denton County');
-map.attributionControl.addAttribution('Buildings: <a href="https://overturemaps.org/">Overture Maps</a> (ODbL)');
+map.attributionControl.addAttribution('Buildings: <a href="https://overturemaps.org/">Overture Maps</a> (ODbL) + estimated neighborhood footprints');
 let tileWarning = false;
 let streetMap = null;
 const mapWarning = () => {
@@ -182,7 +182,7 @@ function ensureMapEnhancements() {
   if (!streetMap || !streetMap.isStyleLoaded() || streetMap.getLayer('arrowbrooke-address-labels')) return;
   streetMap.addSource('arrowbrooke-buildings', {
     type: 'geojson',
-    data: 'arrowbrooke-buildings.geojson?v=20261028'
+    data: 'arrowbrooke-buildings.geojson?v=20261028-sw-expanded'
   });
   streetMap.addLayer({
     id: 'arrowbrooke-building-supplement',
