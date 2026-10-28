@@ -182,7 +182,7 @@ function ensureMapEnhancements() {
   if (!streetMap || !streetMap.isStyleLoaded() || streetMap.getLayer('arrowbrooke-address-labels')) return;
   streetMap.addSource('arrowbrooke-buildings', {
     type: 'geojson',
-    data: 'arrowbrooke-buildings.geojson?v=20261028-sw-expanded'
+    data: 'arrowbrooke-buildings.geojson?v=20261028-color-match'
   });
   streetMap.addLayer({
     id: 'arrowbrooke-building-supplement',
