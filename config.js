@@ -55,6 +55,8 @@ window.HALLOWEEN_CONFIG = {
   fogRoadOffsetMeters: 18,
   fogEdgeWanderMeters: 4.5,
   // Common area southwest of Morning Ridge Trail and ArrowBrooke Avenue.
-  gp2Location: [33.24955, -96.90445],
+  gp2Location: [33.24991, -96.90508],
+  // Common area previously represented by the non-home 2121 Aurora Lane point.
+  gp3Location: [33.2414618, -96.9063994],
   eventDate: '2026-10-31'
 };

@@ -11,6 +11,61 @@ const buildings = JSON.parse(await readFile(buildingPath, 'utf8'));
 const writeChanges = process.argv.includes('--write');
 const maxDistance = 34;
 const cellSize = 0.00045;
+const invalidAddressKeys = new Set([
+  '1529 HUTTON BRANCH TRL', '2121 AURORA LN',
+  '3329 EVENING VIEW', '1500 MILLICAN LN', '1501 BERRY RIDGE TRL',
+  '2801 FM 1385', '2881 FM 1385', '2965 FM 1385'
+]);
+const frontierAlignment = [
+  [33.25170, -96.90995], [33.25167, -96.90710], [33.25153, -96.90310],
+  [33.25139, -96.89925], [33.25122, -96.89645], [33.25108, -96.89415]
+];
+const winnRidgeAlignment = [
+  [33.24025, -96.90995], [33.24255, -96.90988], [33.24505, -96.90976],
+  [33.24765, -96.90967], [33.25005, -96.90973], [33.25170, -96.90995]
+];
+const fm1385Alignment = [
+  [33.25108, -96.89415], [33.24875, -96.89415], [33.24615, -96.89415],
+  [33.24355, -96.89415], [33.24115, -96.89415], [33.23945, -96.89415]
+];
+const southernAlignment = [
+  [33.23945, -96.89415], [33.23945, -96.89710], [33.23952, -96.89975],
+  [33.23962, -96.90145], [33.23974, -96.90185], [33.24012, -96.90210],
+  [33.24030, -96.90245], [33.24034, -96.90510], [33.24034, -96.90765],
+  [33.24025, -96.90995]
+];
+
+function focusBoundary() {
+  const offset = 18;
+  const longitudeMeters = 111320 * Math.cos(33.2475 * Math.PI / 180);
+  const move = (points, north, east) => points.map(([lat, lng]) => [lat + north / 111320, lng + east / longitudeMeters]);
+  const corner = ([lat, lng], startDegrees, endDegrees) => Array.from({ length: 4 }, (_, index) => {
+    const angle = (startDegrees + (endDegrees - startDegrees) * (index + 1) / 5) * Math.PI / 180;
+    return [lat + Math.sin(angle) * offset / 111320, lng + Math.cos(angle) * offset / longitudeMeters];
+  });
+  return [
+    ...move(frontierAlignment, offset, 0), ...corner(frontierAlignment.at(-1), 90, 0),
+    ...move(fm1385Alignment, 0, offset), ...corner(fm1385Alignment.at(-1), 0, -90),
+    ...move(southernAlignment, -offset, 0), ...corner(southernAlignment.at(-1), -90, -180),
+    ...move(winnRidgeAlignment, 0, -offset), ...corner(winnRidgeAlignment.at(-1), 180, 90)
+  ].map(([lat, lng]) => [lng, lat]);
+}
+
+function insideBoundary([lng, lat], ring) {
+  let inside = false;
+  for (let index = 0, previous = ring.length - 1; index < ring.length; previous = index, index += 1) {
+    const a = ring[index];
+    const b = ring[previous];
+    if ((a[1] > lat) !== (b[1] > lat) && lng < (b[0] - a[0]) * (lat - a[1]) / (b[1] - a[1]) + a[0]) inside = !inside;
+  }
+  return inside;
+}
+
+const clearBoundary = focusBoundary();
+addresses.features = addresses.features.filter((feature) =>
+  !invalidAddressKeys.has(`${feature.properties?.number} ${feature.properties?.street}`) &&
+  insideBoundary(feature.geometry.coordinates, clearBoundary)
+);
 
 const parts = [];
 for (const feature of buildings.features || []) {

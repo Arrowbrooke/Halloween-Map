@@ -6,6 +6,8 @@ A separate, mobile-friendly neighborhood Halloween map. Residents can search and
 
 The map's searchable house numbers come from the OpenAddresses Denton County export, whose source is Denton County GIS. `arrowbrooke-addresses.geojson` is clipped to the map boundary and contains only house number, street, and coordinates. It does not include resident names, ownership, values, contact details, or the rest of the county dataset. Address-label coordinates are snapped to matched Overture building centers; any remaining visible labels are matched to loaded base-map buildings in the browser.
 
+The preparation script excludes address points outside the full four-sided clear/fog boundary and the small set of known non-home roadway/common-area records listed in `scripts/snap-addresses-to-buildings.mjs`.
+
 Residents can find a home by typing its address or by placing a pin. Both paths show the matched address and let the resident confirm the location on the map before submitting it for organizer approval.
 
 ## Neighborhood buildings

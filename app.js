@@ -1,5 +1,5 @@
 import { displayCategory } from './display-category.js';
-import { findHome, homeKey, homeCenter } from './home-shapes.js';
+import { distanceToHome, findHome, homeKey, homeCenter } from './home-shapes.js';
 import { pickStopName } from './stop-names.js';
 import { lookupAddress } from './address-lookup.js';
 
@@ -58,9 +58,14 @@ function normalizeAddressText(value) {
 
 async function loadNeighborhoodAddresses() {
   try {
-    const response = await fetch('arrowbrooke-addresses.geojson?v=20261028-snapped', { credentials: 'same-origin' });
+    const response = await fetch('arrowbrooke-addresses.geojson?v=20261028-address-cleanup', { credentials: 'same-origin' });
     if (!response.ok) throw new Error('Address file unavailable');
     neighborhoodAddressData = await response.json();
+    for (const feature of neighborhoodAddressData.features || []) {
+      if (feature.properties?.building_match_m != null) continue;
+      feature.properties.address_lng = feature.geometry.coordinates[0];
+      feature.properties.address_lat = feature.geometry.coordinates[1];
+    }
     neighborhoodAddresses = (neighborhoodAddressData.features || []).map((feature) => {
       const number = String(feature.properties?.number || '').trim();
       const street = displayStreetName(feature.properties?.street);
@@ -182,7 +187,7 @@ function ensureMapEnhancements() {
   if (!streetMap || !streetMap.isStyleLoaded() || streetMap.getLayer('arrowbrooke-address-labels')) return;
   streetMap.addSource('arrowbrooke-buildings', {
     type: 'geojson',
-    data: 'arrowbrooke-buildings.geojson?v=20261028-color-match'
+    data: 'arrowbrooke-buildings.geojson?v=20261028-no-overlaps'
   });
   streetMap.addLayer({
     id: 'arrowbrooke-building-supplement',
@@ -355,21 +360,46 @@ function snapVisibleAddressLabels() {
   const buildings = mapBuildingFeatures();
   if (!buildings.length) return;
   const bounds = map.getBounds().pad(0.2);
-  const used = new Set();
-  let changed = false;
+  const parts = [];
+  for (const feature of buildings) {
+    const geometry = feature.geometry;
+    if (geometry?.type === 'Polygon') parts.push(geometry);
+    if (geometry?.type === 'MultiPolygon') {
+      for (const coordinates of geometry.coordinates) parts.push({ type: 'Polygon', coordinates });
+    }
+  }
+  const visibleAddresses = [];
+  const pairs = [];
   neighborhoodAddressData.features.forEach((feature, index) => {
-    if (feature.properties?.building_match_m != null || feature.properties?.runtime_building_match) return;
-    const [lng, lat] = feature.geometry.coordinates;
+    if (feature.properties?.building_match_m != null) return;
+    const lng = feature.properties.address_lng ?? feature.geometry.coordinates[0];
+    const lat = feature.properties.address_lat ?? feature.geometry.coordinates[1];
     if (!bounds.contains([lat, lng])) return;
-    const home = findHome(buildings, lng, lat, 34, used);
-    if (!home) return;
-    used.add(homeKey(home));
-    const [homeLat, homeLng] = homeCenter(home);
-    feature.geometry.coordinates = [homeLng, homeLat];
-    feature.properties.runtime_building_match = true;
-    if (neighborhoodAddresses[index]) Object.assign(neighborhoodAddresses[index], { lat: homeLat, lng: homeLng });
-    changed = true;
+    visibleAddresses.push({ feature, index, lng, lat });
+    for (let buildingIndex = 0; buildingIndex < parts.length; buildingIndex += 1) {
+      const distance = distanceToHome(parts[buildingIndex], lng, lat);
+      if (distance <= 45) pairs.push({ addressIndex: index, buildingIndex, distance });
+    }
   });
+  pairs.sort((a, b) => a.distance - b.distance);
+  const assignments = new Map();
+  const usedBuildings = new Set();
+  for (const pair of pairs) {
+    if (assignments.has(pair.addressIndex) || usedBuildings.has(pair.buildingIndex)) continue;
+    assignments.set(pair.addressIndex, parts[pair.buildingIndex]);
+    usedBuildings.add(pair.buildingIndex);
+  }
+  let changed = false;
+  for (const { feature, index, lng, lat } of visibleAddresses) {
+    const home = assignments.get(index);
+    const [nextLat, nextLng] = home ? homeCenter(home) : [lat, lng];
+    const [currentLng, currentLat] = feature.geometry.coordinates;
+    if (Math.abs(currentLng - nextLng) > 1e-9 || Math.abs(currentLat - nextLat) > 1e-9) {
+      feature.geometry.coordinates = [nextLng, nextLat];
+      changed = true;
+    }
+    if (neighborhoodAddresses[index]) Object.assign(neighborhoodAddresses[index], { lat: nextLat, lng: nextLng });
+  }
   if (changed) streetMap.getSource('arrowbrooke-addresses')?.setData(neighborhoodAddressData);
 }
 
@@ -384,9 +414,11 @@ function updateGreenbeltLabels() {
     } catch { /* source may still be loading */ }
   }
   const gp2Location = config.gp2Location || [33.24955, -96.90445];
+  const gp3Location = config.gp3Location || [33.2414618, -96.9063994];
   const features = [
     ...(gp1Coordinates ? [{ type: 'Feature', properties: { label: 'GP1' }, geometry: { type: 'Point', coordinates: gp1Coordinates } }] : []),
-    { type: 'Feature', properties: { label: 'GP2' }, geometry: { type: 'Point', coordinates: [gp2Location[1], gp2Location[0]] } }
+    { type: 'Feature', properties: { label: 'GP2' }, geometry: { type: 'Point', coordinates: [gp2Location[1], gp2Location[0]] } },
+    { type: 'Feature', properties: { label: 'GP3' }, geometry: { type: 'Point', coordinates: [gp3Location[1], gp3Location[0]] } }
   ];
   const renderedKey = JSON.stringify(features.map((feature) => feature.geometry.coordinates));
   if (renderedKey === gpLabelsRenderedKey) return;

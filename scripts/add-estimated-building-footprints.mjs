@@ -5,7 +5,7 @@ const addressPath = new URL('../arrowbrooke-addresses.geojson', import.meta.url)
 const buildings = JSON.parse(await readFile(buildingPath, 'utf8'));
 const addresses = JSON.parse(await readFile(addressPath, 'utf8'));
 const targetStreets = new Set([
-  'AURORA LN', 'CLEAR FORK ST', 'EDGEMIRE LN', 'GREAT PLAINS DR',
+  'AURORA LN', 'CLEAR FORK ST', 'CROSS TIMBER CT', 'EDGEMIRE LN', 'GREAT PLAINS DR',
   'HUTTON BRANCH CT', 'HUTTON BRANCH TRL', 'LAUREL AVE', 'MIDNIGHT LN',
   'MISSION ST', 'SOAPBERRY DR', 'SOAPBERRY ST'
 ]);
@@ -71,8 +71,80 @@ function estimatedFootprint(feature) {
   };
 }
 
+function bounds(feature) {
+  const points = feature.geometry.coordinates[0];
+  return {
+    west: Math.min(...points.map((point) => point[0])),
+    east: Math.max(...points.map((point) => point[0])),
+    south: Math.min(...points.map((point) => point[1])),
+    north: Math.max(...points.map((point) => point[1]))
+  };
+}
+
+function polygonsOverlap(first, second) {
+  if (first.geometry.type !== 'Polygon' || second.geometry.type !== 'Polygon') return false;
+  const aBounds = bounds(first);
+  const bBounds = bounds(second);
+  if (aBounds.east <= bBounds.west || bBounds.east <= aBounds.west || aBounds.north <= bBounds.south || bBounds.north <= aBounds.south) return false;
+  const a = first.geometry.coordinates[0].slice(0, -1);
+  const b = second.geometry.coordinates[0].slice(0, -1);
+  for (const polygon of [a, b]) {
+    for (let index = 0; index < polygon.length; index += 1) {
+      const start = polygon[index];
+      const end = polygon[(index + 1) % polygon.length];
+      const axis = [-(end[1] - start[1]), end[0] - start[0]];
+      const aProjection = a.map((point) => point[0] * axis[0] + point[1] * axis[1]);
+      const bProjection = b.map((point) => point[0] * axis[0] + point[1] * axis[1]);
+      if (Math.max(...aProjection) <= Math.min(...bProjection) || Math.max(...bProjection) <= Math.min(...aProjection)) return false;
+    }
+  }
+  return true;
+}
+
+function shrink(feature, factor = 0.9) {
+  const ring = feature.geometry.coordinates[0];
+  const points = ring.slice(0, -1);
+  const center = [
+    points.reduce((sum, point) => sum + point[0], 0) / points.length,
+    points.reduce((sum, point) => sum + point[1], 0) / points.length
+  ];
+  const smaller = points.map((point) => [
+    center[0] + (point[0] - center[0]) * factor,
+    center[1] + (point[1] - center[1]) * factor
+  ]);
+  smaller.push(smaller[0]);
+  feature.geometry.coordinates[0] = smaller;
+}
+
+function overlappingEstimateIndexes(estimates, fixed) {
+  const overlaps = new Set();
+  for (let first = 0; first < estimates.length; first += 1) {
+    for (const building of fixed) if (polygonsOverlap(estimates[first], building)) overlaps.add(first);
+    for (let second = first + 1; second < estimates.length; second += 1) {
+      if (polygonsOverlap(estimates[first], estimates[second])) {
+        overlaps.add(first);
+        overlaps.add(second);
+      }
+    }
+  }
+  return overlaps;
+}
+
 buildings.features = buildings.features.filter((feature) => !feature.properties?.estimated);
 const estimates = candidates.map(estimatedFootprint);
+const initialOverlaps = overlappingEstimateIndexes(estimates, buildings.features);
+for (let pass = 0; pass < 10; pass += 1) {
+  const overlaps = overlappingEstimateIndexes(estimates, buildings.features);
+  if (!overlaps.size) break;
+  for (const index of overlaps) shrink(estimates[index]);
+}
+const remainingOverlaps = overlappingEstimateIndexes(estimates, buildings.features);
 buildings.features.push(...estimates);
 await writeFile(buildingPath, `${JSON.stringify(buildings)}\n`);
-console.log(JSON.stringify({ overtureFootprints: buildings.features.length - estimates.length, estimatedFootprints: estimates.length, total: buildings.features.length }, null, 2));
+console.log(JSON.stringify({
+  overtureFootprints: buildings.features.length - estimates.length,
+  estimatedFootprints: estimates.length,
+  estimatesWithInitialOverlap: initialOverlaps.size,
+  estimatesWithRemainingOverlap: remainingOverlaps.size,
+  total: buildings.features.length
+}, null, 2));
