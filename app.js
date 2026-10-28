@@ -222,12 +222,71 @@ function setOrganizerMode(active) {
   document.body.classList.toggle('organizer-mode', active);
   $('#organizer-login').hidden = active;
   $('#organizer-tools').hidden = !active;
-  if (active) updateNotificationControls();
+  if (active) {
+    updateNotificationControls();
+    updateExportStatus();
+  }
   if (selectedId) showDetail(selectedId, false);
 }
 
 function isOrganizerSession(session) {
   return Boolean(session?.user?.email && session.user.email.toLowerCase() === String(config.organizerEmail || '').toLowerCase());
+}
+
+function updateExportStatus() {
+  const label = $('#export-status');
+  if (!label) return;
+  const previous = localStorage.getItem('arrowbrooke-last-home-export');
+  label.textContent = previous
+    ? `Last exported ${new Date(previous).toLocaleString()}.`
+    : 'Download a backup of the current home list.';
+}
+
+function csvCell(value) {
+  const text = Array.isArray(value) ? value.join(' + ') : String(value ?? '');
+  return `"${text.replace(/"/g, '""')}"`;
+}
+
+async function exportHomeList() {
+  const button = $('#organizer-export');
+  if (!button || !isOrganizer || !adminDb) return;
+  button.disabled = true;
+  try {
+    const { data, error } = await adminDb.from('stops')
+      .select('address,title,categories,notes,created_at,lat,lng')
+      .eq('event_date', config.eventDate)
+      .eq('approval_status', 'approved')
+      .order('address');
+    if (error) throw error;
+    const headers = ['Address', 'Display name', 'Kids candy', 'Adult treats', 'Decorations', 'Notes', 'Added', 'Latitude', 'Longitude'];
+    const rows = (data || []).map((stop) => [
+      stop.address,
+      stop.title,
+      stop.categories?.includes('candy') ? 'Yes' : 'No',
+      stop.categories?.includes('adult') ? 'Yes' : 'No',
+      stop.categories?.includes('decor') ? 'Yes' : 'No',
+      stop.notes,
+      stop.created_at,
+      stop.lat,
+      stop.lng
+    ]);
+    const csv = [headers, ...rows].map((row) => row.map(csvCell).join(',')).join('\r\n');
+    const blobUrl = URL.createObjectURL(new Blob([`\uFEFF${csv}`], { type: 'text/csv;charset=utf-8' }));
+    const link = document.createElement('a');
+    link.href = blobUrl;
+    link.download = `arrowbrooke-halloween-homes-${new Date().toISOString().slice(0, 10)}.csv`;
+    document.body.append(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(blobUrl);
+    localStorage.setItem('arrowbrooke-last-home-export', new Date().toISOString());
+    updateExportStatus();
+    toast(`Exported ${rows.length} participating ${rows.length === 1 ? 'home' : 'homes'}.`);
+  } catch {
+    toast('Could not export the home list. Please sign in again and retry.');
+  } finally {
+    button.disabled = false;
+  }
 }
 
 const map = L.map('map', { zoomControl: false }).setView(config.center, config.zoom);
@@ -1080,6 +1139,7 @@ $('#organizer-logout').onclick = async () => {
   toast('Organizer mode ended.');
 };
 $('#notification-toggle').onclick = togglePushNotifications;
+$('#organizer-export').onclick = exportHomeList;
 
 let directionsAddress = '';
 function openDirections(stop) {
@@ -1145,7 +1205,40 @@ formAddressOptions.onclick = (event) => {
   if (option) chooseFormAddress(formAddressOptions._matches[Number(option.dataset.addressOption)]);
 };
 
-function openAdd() { closeDetail(); $('#form-error').textContent = ''; dialog.showModal(); }
+function centralDateString() {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'America/Chicago', year: 'numeric', month: '2-digit', day: '2-digit'
+  }).formatToParts(new Date());
+  const values = Object.fromEntries(parts.map((part) => [part.type, part.value]));
+  return `${values.year}-${values.month}-${values.day}`;
+}
+
+function submissionsClosed() {
+  return centralDateString() > config.eventDate;
+}
+
+function updateSubmissionAvailability() {
+  const closed = submissionsClosed();
+  const addButton = $('#add');
+  const addTab = $('#add-tab');
+  addButton.disabled = closed;
+  addTab.disabled = closed;
+  if (closed) {
+    addButton.innerHTML = '<span>✓</span> Submissions closed';
+    addButton.title = 'Halloween home submissions closed on November 1.';
+    addTab.innerHTML = '<span>✓</span>Submissions closed';
+  }
+}
+
+function openAdd() {
+  if (submissionsClosed()) {
+    toast('Halloween home submissions closed on November 1.');
+    return;
+  }
+  closeDetail();
+  $('#form-error').textContent = '';
+  dialog.showModal();
+}
 $('#add').onclick = openAdd;
 $('#add-tab').onclick = openAdd;
 $('.close-dialog').onclick = () => dialog.close();
@@ -1177,6 +1270,7 @@ $('#stop-form').onsubmit = async (event) => {
   const form = new FormData(event.target);
   const errorElement = $('#form-error');
   errorElement.textContent = '';
+  if (submissionsClosed()) { errorElement.textContent = 'Halloween home submissions are closed for this event.'; return; }
   const selectedCategories = [...new Set(form.getAll('categories'))];
   if (selectedCategories.includes('adult') && !selectedCategories.includes('candy')) selectedCategories.push('candy');
   if (!selectedCategories.length) { errorElement.textContent = 'Choose at least one kind of treat or decoration.'; return; }
@@ -1220,9 +1314,10 @@ $('#stop-form').onsubmit = async (event) => {
     if (demo) showDetail(id);
     toast(demo ? 'Sample house added for this preview session.' : 'Your house is now on the ArrowBrooke map!');
   } catch (error) {
-    errorElement.textContent = error?.code === '23505'
-      ? 'That home is already listed for this event.'
-      : 'Could not save your house. Check your connection and try again.';
+    if (error?.code === '23505') errorElement.textContent = 'That home is already listed for this event.';
+    else if (error?.code === '23514') errorElement.textContent = 'Choose your exact home from the verified ArrowBrooke address list.';
+    else if (error?.code === '22023') errorElement.textContent = 'Halloween home submissions are closed for this event.';
+    else errorElement.textContent = 'Could not save your house. Check your connection and try again.';
   } finally { $('#save-stop').disabled = false; }
 };
 
@@ -1400,13 +1495,15 @@ async function initialize() {
       if (state === 'SUBSCRIBED') { status('● Neighborhood map is live · New homes appear automatically.', true); loadStops().catch(() => status('Could not refresh homes. Check your connection.')); }
       else if (['CHANNEL_ERROR', 'TIMED_OUT', 'CLOSED'].includes(state)) status('Reconnecting · New homes may be delayed.');
     });
-    setInterval(() => loadStops().catch(() => status('Offline · Showing the last loaded homes.')), 30000);
+    setInterval(() => loadStops().catch(() => status('Offline · Showing the last loaded homes.')), 120000);
     const requested = new URLSearchParams(location.search).get('stop');
     if (requested) showDetail(requested);
   } catch { status('Could not connect to the neighborhood map. Please try reloading.'); render(); }
 }
 
 map.on('zoomend', render);
+updateSubmissionAvailability();
+setInterval(updateSubmissionAvailability, 60000);
 initialize();
 
 function setSheet(expanded) {

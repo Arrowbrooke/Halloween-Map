@@ -10,6 +10,8 @@ The preparation script excludes address points outside the full four-sided clear
 
 Residents can find a home by typing its address or by placing a pin. Both paths resolve to a verified address in the neighborhood list and let the resident confirm the location before submitting it. Only one listing per verified address is allowed for each event.
 
+The database independently enforces that same address list with `supabase-address-validation.sql`. It replaces submitted address text and coordinates with the canonical record, rejects unknown addresses or event dates, and closes 2026 submissions at midnight Central Time on November 1. Regenerate the SQL after any address-file change with `node scripts/generate-verified-addresses-sql.mjs`, then run it in the Supabase SQL Editor.
+
 ## Neighborhood buildings
 
 `arrowbrooke-buildings.geojson` supplements the base map with geometry-only building footprints from the Overture Maps 2026-10-21 release. Overture records sourced from OpenStreetMap are excluded because the base map already draws them; this prevents overlapping transparent fills from changing the original building color. The remaining supplemental footprints use the same styling and home-highlighting behavior as the existing buildings. Overture Maps building data is licensed under ODbL.
@@ -33,6 +35,8 @@ Residents cannot replace an existing listing for the same home. Adult-treat subm
 The public map includes a password-only **Organizer login**. It signs in through a dedicated Supabase Auth account; the password is never stored in this repository. The organizer session uses browser session storage and ends when the browser tab or window is closed.
 
 After signing in, select a participating home on the map to change its display name, notes, or offerings, or remove it from the public map. Run `supabase-organizer-setup.sql` once after creating and confirming the dedicated organizer account described in `config.js`.
+
+Organizer mode also includes **Export home list (CSV)**. It downloads the current event's approved homes, offerings, notes, timestamps, and coordinates and remembers the last export time on that device.
 
 ## Organizer iPhone notifications
 

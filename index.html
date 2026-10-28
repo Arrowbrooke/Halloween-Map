@@ -14,7 +14,7 @@
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="stylesheet" href="vendor/leaflet.css">
   <link rel="stylesheet" href="vendor/maplibre-gl.css">
-  <link rel="stylesheet" href="style.css?v=20261028-directions-choice">
+  <link rel="stylesheet" href="style.css?v=20261028-address-hardening">
 </head>
 <body>
   <main>
@@ -56,6 +56,10 @@
         <div class="notification-controls">
           <span id="notification-status">Checking iPhone notifications…</span>
           <button id="notification-toggle" class="secondary" type="button">Turn on iPhone alerts</button>
+        </div>
+        <div class="export-controls">
+          <span id="export-status">Download a backup of the current home list.</span>
+          <button id="organizer-export" class="secondary" type="button">Export home list (CSV)</button>
         </div>
         <button id="organizer-logout" class="secondary" type="button">Sign out</button>
       </div>
@@ -172,6 +176,6 @@
   <script src="vendor/leaflet-maplibre-gl.js"></script>
   <script src="vendor/supabase.js"></script>
   <script src="config.js?v=20261028-push-notifications"></script>
-  <script src="app.js?v=20261028-live-halloween-location" type="module"></script>
+  <script src="app.js?v=20261028-address-hardening" type="module"></script>
 </body>
 </html>
