@@ -15,6 +15,7 @@ create table if not exists public.push_subscriptions (
 alter table public.push_subscriptions enable row level security;
 revoke all on public.push_subscriptions from anon, authenticated;
 grant select, insert, update, delete on public.push_subscriptions to authenticated;
+grant select, delete on public.push_subscriptions to service_role;
 
 drop policy if exists "Organizer manages notification subscriptions" on public.push_subscriptions;
 create policy "Organizer manages notification subscriptions" on public.push_subscriptions
@@ -37,3 +38,4 @@ as $$
   delete from public.push_subscriptions where endpoint = target_endpoint;
 $$;
 revoke all on function public.remove_expired_push_subscription(text) from public, anon, authenticated;
+grant execute on function public.remove_expired_push_subscription(text) to service_role;

@@ -51,6 +51,7 @@ async function importVapidKeys(publicKey: string, privateKey: string): Promise<C
 }
 
 Deno.serve(async (request) => {
+ try {
   if (request.method !== 'POST') return json({ error: 'Method not allowed' }, 405);
 
   const webhookSecret = Deno.env.get('PUSH_WEBHOOK_SECRET');
@@ -65,10 +66,23 @@ Deno.serve(async (request) => {
   }
 
   const supabaseUrl = Deno.env.get('SUPABASE_URL');
-  const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+  let projectSecretKeys: Record<string, string> = {};
+  try {
+    projectSecretKeys = JSON.parse(Deno.env.get('SUPABASE_SECRET_KEYS') || '{}');
+  } catch {
+    console.error('SUPABASE_SECRET_KEYS is not valid JSON');
+  }
+  const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || projectSecretKeys.default;
   const publicKey = Deno.env.get('VAPID_PUBLIC_KEY');
   const privateKey = Deno.env.get('VAPID_PRIVATE_KEY');
-  if (!supabaseUrl || !serviceKey || !publicKey || !privateKey) {
+  const missingSecrets = [
+    !supabaseUrl && 'SUPABASE_URL',
+    !serviceKey && 'SUPABASE_SERVICE_KEY',
+    !publicKey && 'VAPID_PUBLIC_KEY',
+    !privateKey && 'VAPID_PRIVATE_KEY'
+  ].filter(Boolean);
+  if (missingSecrets.length) {
+    console.error('Notification secrets missing:', missingSecrets.join(', '));
     return json({ error: 'Notification secrets are incomplete' }, 500);
   }
 
@@ -86,7 +100,10 @@ Deno.serve(async (request) => {
   const { data: subscriptions, error } = await supabase
     .from('push_subscriptions')
     .select('endpoint,p256dh,auth');
-  if (error) return json({ error: 'Could not load notification subscriptions' }, 500);
+  if (error) {
+    console.error('Could not load notification subscriptions:', error.message);
+    return json({ error: 'Could not load notification subscriptions' }, 500);
+  }
 
   const categoryNames: Record<string, string> = {
     candy: "Kids' candy",
@@ -120,5 +137,10 @@ Deno.serve(async (request) => {
   if (expired.length) {
     await supabase.from('push_subscriptions').delete().in('endpoint', expired);
   }
+  console.info('Web Push result:', JSON.stringify({ delivered, expired: expired.length, subscriptions: subscriptions?.length || 0 }));
   return json({ delivered, expired: expired.length });
+ } catch (unhandledError) {
+   console.error('Unhandled notification error:', unhandledError instanceof Error ? unhandledError.stack || unhandledError.message : String(unhandledError));
+   return json({ error: 'Notification delivery failed' }, 500);
+ }
 });
