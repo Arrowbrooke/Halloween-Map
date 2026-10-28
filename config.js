@@ -5,6 +5,9 @@ window.HALLOWEEN_CONFIG = {
   supabaseKey: 'sb_publishable_Z-gH4ovBmap5sbCSyJ04hg_TxVBC4r9',
   // A dedicated, non-personal Supabase Auth account powers the password-only organizer login.
   organizerEmail: 'organizer@arrowbrooke-map.invalid',
+  // Public half of the Web Push key pair. The private half lives only in
+  // Supabase Edge Function secrets and is never shipped to visitors.
+  vapidPublicKey: 'BA9S9zdkPSLrbjMOe0GETWmOYGy7Obua-6FRrSS6Fc_WGCLmyBRM0aRBEVky-K7PySk85yBwJyc7doGLLwpZaBg',
   reverseGeocodeUrl: 'https://photon.komoot.io/reverse',
   addressSearchUrl: 'https://photon.komoot.io/api/',
   center: [33.2475, -96.9025],

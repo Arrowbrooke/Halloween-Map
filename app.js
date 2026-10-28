@@ -40,6 +40,125 @@ let fogAnimationFrame = null;
 let neighborhoodAddressData = { type: 'FeatureCollection', features: [] };
 let neighborhoodAddresses = [];
 let addressDataLoaded = false;
+let serviceWorkerRegistrationPromise = null;
+
+function isIosDevice() {
+  return /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+}
+
+function isStandaloneApp() {
+  return window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
+}
+
+function prepareServiceWorker() {
+  if (!('serviceWorker' in navigator)) return null;
+  if (!serviceWorkerRegistrationPromise) {
+    serviceWorkerRegistrationPromise = navigator.serviceWorker.register('./sw.js', { scope: './' });
+  }
+  return serviceWorkerRegistrationPromise;
+}
+
+function applicationServerKey(value) {
+  const padding = '='.repeat((4 - value.length % 4) % 4);
+  const base64 = (value + padding).replace(/-/g, '+').replace(/_/g, '/');
+  return Uint8Array.from(atob(base64), (character) => character.charCodeAt(0));
+}
+
+async function currentPushSubscription() {
+  const registration = await prepareServiceWorker();
+  return registration?.pushManager?.getSubscription() || null;
+}
+
+async function updateNotificationControls() {
+  const button = $('#notification-toggle');
+  const label = $('#notification-status');
+  if (!button || !label || !isOrganizer) return;
+
+  button.hidden = false;
+  button.disabled = false;
+  if (!isIosDevice()) {
+    label.textContent = 'Finish setup from the Halloween Map icon on your iPhone.';
+    button.textContent = 'iPhone setup instructions';
+    return;
+  }
+  if (!isStandaloneApp()) {
+    label.textContent = 'In Safari, tap Share, then Add to Home Screen. Open the new map icon to continue.';
+    button.textContent = 'How to add the map';
+    return;
+  }
+  if (!('PushManager' in window) || !('Notification' in window) || !prepareServiceWorker()) {
+    label.textContent = 'This iPhone needs iOS 16.4 or newer for map notifications.';
+    button.hidden = true;
+    return;
+  }
+  if (Notification.permission === 'denied') {
+    label.textContent = 'Notifications are blocked. Enable Halloween Map in iPhone Settings → Notifications.';
+    button.hidden = true;
+    return;
+  }
+
+  try {
+    const subscription = await currentPushSubscription();
+    label.textContent = subscription
+      ? 'New-home alerts will appear on this iPhone.'
+      : 'Get an alert whenever a resident adds a home.';
+    button.textContent = subscription ? 'Turn off iPhone alerts' : 'Turn on iPhone alerts';
+    button.dataset.subscribed = String(Boolean(subscription));
+  } catch {
+    label.textContent = 'Notifications are not ready yet. Try again after reloading the map.';
+    button.textContent = 'Retry iPhone alerts';
+  }
+}
+
+async function togglePushNotifications() {
+  if (!isIosDevice() || !isStandaloneApp()) {
+    toast('On your iPhone, open this map in Safari, tap Share → Add to Home Screen, then open the new map icon.');
+    return;
+  }
+
+  const button = $('#notification-toggle');
+  button.disabled = true;
+  try {
+    const registration = await prepareServiceWorker();
+    let subscription = await registration.pushManager.getSubscription();
+    if (subscription) {
+      const { error } = await adminDb.from('push_subscriptions').delete().eq('endpoint', subscription.endpoint);
+      if (error) throw error;
+      await subscription.unsubscribe();
+      toast('iPhone notifications are turned off.');
+    } else {
+      const permission = await Notification.requestPermission();
+      if (permission !== 'granted') throw new Error('Permission was not granted');
+      subscription = await registration.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: applicationServerKey(config.vapidPublicKey)
+      });
+      const serialized = subscription.toJSON();
+      const { data: sessionData } = await adminDb.auth.getSession();
+      const { error } = await adminDb.from('push_subscriptions').upsert({
+        created_by: sessionData.session.user.id,
+        endpoint: serialized.endpoint,
+        p256dh: serialized.keys.p256dh,
+        auth: serialized.keys.auth,
+        user_agent: navigator.userAgent,
+        updated_at: new Date().toISOString()
+      }, { onConflict: 'endpoint' });
+      if (error) {
+        await subscription.unsubscribe();
+        throw error;
+      }
+      toast('iPhone notifications are on! You will be alerted when a home is added.');
+    }
+  } catch (error) {
+    const denied = 'Notification' in window && Notification.permission === 'denied';
+    toast(denied
+      ? 'Notifications were blocked. Enable Halloween Map in iPhone Settings → Notifications.'
+      : 'Could not update notifications. Please reload and try again.');
+  } finally {
+    button.disabled = false;
+    await updateNotificationControls();
+  }
+}
 
 const streetUppercaseWords = new Set(['FM']);
 
@@ -100,6 +219,7 @@ function setOrganizerMode(active) {
   document.body.classList.toggle('organizer-mode', active);
   $('#organizer-login').hidden = active;
   $('#organizer-tools').hidden = !active;
+  if (active) updateNotificationControls();
   if (selectedId) showDetail(selectedId, false);
 }
 
@@ -956,6 +1076,7 @@ $('#organizer-logout').onclick = async () => {
   setOrganizerMode(false);
   toast('Organizer mode ended.');
 };
+$('#notification-toggle').onclick = togglePushNotifications;
 
 let directionsAddress = '';
 function openDirections(stop) {
@@ -1174,6 +1295,7 @@ async function loadStops() {
 }
 
 async function initialize() {
+  prepareServiceWorker()?.catch(() => {});
   if (demo) { stops = demoStops; status('Preview · Sample participating homes', true); render(); return; }
   if (!config.supabaseUrl || !config.supabaseKey) { status('Map setup in progress · Open the demo preview to explore the design.'); render(); return; }
   try {

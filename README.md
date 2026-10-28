@@ -34,6 +34,18 @@ The public map includes a password-only **Organizer login**. It signs in through
 
 After signing in, select a participating home on the map to change its display name, notes, or offerings, or remove it from the public map. Run `supabase-organizer-setup.sql` once after creating and confirming the dedicated organizer account described in `config.js`.
 
+## Organizer iPhone notifications
+
+The organizer can receive a native iPhone notification whenever a new home is added, without an SMS provider or paid notification app. Web Push works on iOS 16.4 or newer after the website is installed as a Home Screen app.
+
+1. Run `supabase-push-setup.sql` in the Supabase SQL Editor.
+2. Deploy `supabase/functions/notify-new-stop` with JWT verification disabled as specified in `supabase/config.toml`.
+3. Add `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, and `PUSH_WEBHOOK_SECRET` to the Edge Function secrets. The public key must match `config.js`; never commit the other two values.
+4. Create a database webhook for `public.stops` on **Insert**. Point it to the `notify-new-stop` Edge Function and include the same `x-webhook-secret` value in its HTTP headers.
+5. On the organizer's iPhone, open the map in Safari, choose **Share → Add to Home Screen**, launch the installed map, sign in as organizer, and tap **Turn on iPhone alerts**.
+
+The subscription table is private to the organizer account. Expired Apple delivery endpoints are removed automatically by the sender function.
+
 ## One-time setup
 
 1. Create a new Supabase project for this site. Do not reuse the personal map's project.
