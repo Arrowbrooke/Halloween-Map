@@ -115,7 +115,7 @@ try {
 
 const addressDataPromise = loadNeighborhoodAddresses();
 
-function organicFogBoundary() {
+function fogStructuralBoundary() {
   const roadOffset = config.fogRoadOffsetMeters || 18;
   const longitudeMeters = 111320 * Math.cos(config.center[0] * Math.PI / 180);
   const move = (points, northMeters, eastMeters) => points.map(([lat, lng]) => [lat + northMeters / 111320, lng + eastMeters / longitudeMeters]);
@@ -131,16 +131,20 @@ function organicFogBoundary() {
   const east = move(config.fm1385Alignment || config.focusBoundary.slice(1, 3), 0, roadOffset);
   const south = move(config.southernAlignment || config.focusBoundary.slice(2, 4), -roadOffset, 0);
   const west = move(config.winnRidgeAlignment || [config.focusBoundary[3], config.focusBoundary[0]], 0, -roadOffset);
-  const structuralBoundary = [
+  return [
     ...north,
-    ...cornerArc(config.focusBoundary[1], 90, 0),
+    ...cornerArc(config.frontierAlignment.at(-1), 90, 0),
     ...east,
-    ...cornerArc(config.focusBoundary[2], 0, -90),
+    ...cornerArc(config.fm1385Alignment.at(-1), 0, -90),
     ...south,
-    ...cornerArc(config.focusBoundary[3], -90, -180),
+    ...cornerArc(config.southernAlignment.at(-1), -90, -180),
     ...west,
-    ...cornerArc(config.focusBoundary[0], 180, 90)
+    ...cornerArc(config.winnRidgeAlignment.at(-1), 180, 90)
   ];
+}
+
+function organicFogBoundary() {
+  const structuralBoundary = fogStructuralBoundary();
   const organic = [];
   const wander = config.fogEdgeWanderMeters || 4;
   const segments = structuralBoundary.map((start, edge) => {
@@ -198,8 +202,10 @@ function ensureMapEnhancements() {
   });
 
   if (Array.isArray(config.focusBoundary) && config.focusBoundary.length > 2) {
-    const boundary = organicFogBoundary().map(([lat, lng]) => [lng, lat]);
+    const boundary = fogStructuralBoundary().map(([lat, lng]) => [lng, lat]);
     boundary.push(boundary[0]);
+    const organicEdge = organicFogBoundary().map(([lat, lng]) => [lng, lat]);
+    organicEdge.push(organicEdge[0]);
     streetMap.addSource('arrowbrooke-focus', {
       type: 'geojson',
       data: {
@@ -212,6 +218,14 @@ function ensureMapEnhancements() {
             boundary
           ]
         }
+      }
+    });
+    streetMap.addSource('arrowbrooke-fog-edge', {
+      type: 'geojson',
+      data: {
+        type: 'Feature',
+        properties: {},
+        geometry: { type: 'LineString', coordinates: organicEdge }
       }
     });
 
@@ -243,12 +257,13 @@ function ensureMapEnhancements() {
       id: 'outside-neighborhood-fog',
       type: 'fill',
       source: 'arrowbrooke-focus',
-      paint: { 'fill-color': '#e6eef1', 'fill-opacity': 0.13 }
+      paint: { 'fill-color': '#e6eef1', 'fill-opacity': ['interpolate', ['linear'], ['zoom'], 12, 0.2, 15.5, 0.13] }
     });
     streetMap.addLayer({
       id: 'outside-neighborhood-fog-clouds',
       type: 'fill',
       source: 'arrowbrooke-focus',
+      minzoom: 15.3,
       paint: {
         'fill-pattern': 'arrowbrooke-fog-clouds',
         'fill-opacity': 0.74,
@@ -257,23 +272,34 @@ function ensureMapEnhancements() {
       }
     });
     streetMap.addLayer({
-      id: 'arrowbrooke-fog-feather-wide',
+      id: 'arrowbrooke-low-zoom-haze',
       type: 'line',
       source: 'arrowbrooke-focus',
+      maxzoom: 15.5,
+      layout: { 'line-join': 'round', 'line-cap': 'round' },
+      paint: { 'line-color': '#f6fafc', 'line-width': 20, 'line-blur': 13, 'line-opacity': 0.14 }
+    });
+    streetMap.addLayer({
+      id: 'arrowbrooke-fog-feather-wide',
+      type: 'line',
+      source: 'arrowbrooke-fog-edge',
+      minzoom: 15.1,
       layout: { 'line-join': 'round', 'line-cap': 'round' },
       paint: { 'line-color': '#f4f9fb', 'line-width': 78, 'line-blur': 34, 'line-opacity': 0.12 }
     });
     streetMap.addLayer({
       id: 'arrowbrooke-fog-feather-mid',
       type: 'line',
-      source: 'arrowbrooke-focus',
+      source: 'arrowbrooke-fog-edge',
+      minzoom: 15.1,
       layout: { 'line-join': 'round', 'line-cap': 'round' },
       paint: { 'line-color': '#f7fbfc', 'line-width': 38, 'line-blur': 18, 'line-opacity': 0.16 }
     });
     streetMap.addLayer({
       id: 'arrowbrooke-fog-feather-soft',
       type: 'line',
-      source: 'arrowbrooke-focus',
+      source: 'arrowbrooke-fog-edge',
+      minzoom: 15.1,
       layout: { 'line-join': 'round', 'line-cap': 'round' },
       paint: { 'line-color': '#ffffff', 'line-width': 16, 'line-blur': 9, 'line-opacity': 0.11 }
     });
