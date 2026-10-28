@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#191126">
+  <meta name="description" content="Find participating Halloween homes around ArrowBrooke.">
+  <title>ArrowBrooke After Dark · Halloween Map</title>
+  <link rel="icon" href="icon.svg">
+  <link rel="stylesheet" href="vendor/leaflet.css">
+  <link rel="stylesheet" href="vendor/maplibre-gl.css">
+  <link rel="stylesheet" href="style.css?v=20261028-public">
+</head>
+<body>
+  <main>
+    <div id="map" aria-label="Halloween map of ArrowBrooke"></div>
+
+    <header class="search-panel">
+      <div class="search-box">
+        <span class="pumpkin" aria-hidden="true">🎃</span>
+        <input id="search" type="search" placeholder="Search Halloween stops" aria-label="Search stops">
+        <button id="share" class="icon-button" aria-label="Share map" title="Share map">↗</button>
+      </div>
+      <div class="filters" aria-label="Filter stops">
+        <button class="chip active" data-category="all" aria-pressed="true">All stops</button>
+        <button class="chip" data-category="candy" aria-pressed="false"><i class="dot candy"></i>Kids’ candy</button>
+        <button class="chip" data-category="adult" aria-pressed="false"><i class="dot adult"></i>Adult treats</button>
+        <button class="chip" data-category="decor" aria-pressed="false"><i class="dot decor"></i>Decorations</button>
+      </div>
+    </header>
+
+    <aside class="explore">
+      <button class="sheet-handle" id="sheet-toggle" aria-label="Expand stop list" aria-expanded="false"><span></span></button>
+      <div class="eyebrow">OCTOBER 31 · ARROWBROOKE, TX</div>
+      <div class="title-row">
+        <h1><span class="desktop-title">A little fright.<br>A lot of fun.</span><span class="phone-title">Halloween in ArrowBrooke</span></h1>
+        <span class="ghost" aria-hidden="true">👻</span>
+      </div>
+      <p class="intro">Find the neighbors who are ready for trick-or-treaters.</p>
+      <div class="connection" id="connection" role="status">Connecting to the neighborhood…</div>
+      <div class="list-heading public-list-heading">
+        <h2>Explore participating homes</h2>
+        <span id="count">0 stops</span>
+      </div>
+      <div id="stop-list"></div>
+      <p class="local-note">Tap a home for details and walking directions.</p>
+    </aside>
+
+    <div class="map-controls">
+      <button id="home" class="map-button" aria-label="Back to ArrowBrooke" title="Back to ArrowBrooke">⌂</button>
+      <button id="locate" class="map-button" aria-label="Show my location" title="My location">◎</button>
+      <button id="zoom-in" class="map-button" aria-label="Zoom in">+</button>
+      <button id="zoom-out" class="map-button" aria-label="Zoom out">−</button>
+    </div>
+
+    <div id="place-hint" hidden>Move the map, then tap “Use this spot”</div>
+    <div id="crosshair" hidden aria-hidden="true">+</div>
+    <button id="confirm-location" class="primary location-confirm" hidden>Use this spot</button>
+    <button id="add" class="add-button"><span>＋</span> Add my house</button>
+    <nav class="bottom-nav" aria-label="Main navigation">
+      <button id="explore-tab" class="nav-active"><span>⌖</span>Explore</button>
+      <button id="add-tab"><span>⊕</span>Add my house</button>
+    </nav>
+    <section id="detail" class="detail" hidden aria-label="Stop details"></section>
+  </main>
+
+  <dialog id="add-dialog">
+    <form id="stop-form">
+      <div class="dialog-top">
+        <div><div class="eyebrow">JOIN THE HALLOWEEN MAP</div><h2>Add your house 🎃</h2></div>
+        <button type="button" class="icon-button close-dialog" aria-label="Close">×</button>
+      </div>
+      <p class="muted">Let neighbors know your house is participating this Halloween.</p>
+      <div class="approval-note"><strong>Every house is reviewed before it appears.</strong><br>Your submission stays private until the neighborhood organizer approves the location.</div>
+      <button type="button" id="pick-location" class="secondary">⌖ Choose location on map</button>
+      <p id="location-label" class="muted">Pick your house first; we’ll suggest its address.</p>
+      <label>Display name <span class="optional-label">optional</span>
+        <input name="title" maxlength="80" placeholder="Example: The Pumpkin Porch" aria-describedby="name-help">
+      </label>
+      <p id="name-help" class="field-help">Leave this blank and we’ll choose a fun Halloween name.</p>
+      <label>Street address
+        <input name="address" maxlength="140" placeholder="Choose a pin to suggest an address" aria-describedby="address-help" required>
+      </label>
+      <p id="address-help" class="field-help" role="status">Choose a spot on the map, or type the address yourself.</p>
+      <p class="lookup-credit">Address suggestions: <a href="https://photon.komoot.io/" target="_blank" rel="noopener noreferrer">Photon</a> / <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">OpenStreetMap</a></p>
+      <fieldset>
+        <legend>What’s here? <span class="muted">Choose all that apply</span></legend>
+        <div class="category-options">
+          <label><input name="categories" type="checkbox" value="candy"><span>🍬 Kids’ candy</span></label>
+          <label><input name="categories" type="checkbox" value="adult"><span>🥤 Adult treats</span></label>
+          <label><input name="categories" type="checkbox" value="decor"><span>👻 Decorations</span></label>
+        </div>
+      </fieldset>
+      <label>Good to know
+        <textarea name="notes" maxlength="400" rows="2" placeholder="Full-size candy? Allergy-friendly treats? A spooky light show?"></textarea>
+      </label>
+      <p id="form-error" class="error" role="alert"></p>
+      <button type="submit" id="save-stop" class="primary">Submit my house</button>
+      <p class="fine-print">Only submit a home you are authorized to list. The address and notes will be public to anyone with the map link.</p>
+    </form>
+  </dialog>
+
+  <div id="toast" role="status" hidden></div>
+  <script src="vendor/leaflet.js"></script>
+  <script src="vendor/maplibre-gl.js"></script>
+  <script src="vendor/leaflet-maplibre-gl.js"></script>
+  <script src="vendor/supabase.js"></script>
+  <script src="config.js"></script>
+  <script src="app.js?v=20261028-public" type="module"></script>
+</body>
+</html>
