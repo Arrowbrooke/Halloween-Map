@@ -47,30 +47,6 @@ function status(message, live = false) {
 }
 
 const map = L.map('map', { zoomControl: false }).setView(config.center, config.zoom);
-map.createPane('focusFogPane');
-map.getPane('focusFogPane').style.zIndex = 320;
-map.getPane('focusFogPane').style.pointerEvents = 'none';
-
-if (Array.isArray(config.focusBoundary) && config.focusBoundary.length > 2) {
-  const world = [[85, -180], [85, 180], [-85, 180], [-85, -180]];
-  L.polygon([world, config.focusBoundary], {
-    pane: 'focusFogPane',
-    interactive: false,
-    stroke: false,
-    fillColor: '#0b0712',
-    fillOpacity: 0.46,
-    className: 'focus-fog'
-  }).addTo(map);
-  L.polyline([...config.focusBoundary, config.focusBoundary[0]], {
-    pane: 'focusFogPane',
-    interactive: false,
-    color: '#7185ff',
-    weight: 2,
-    opacity: 0.68,
-    className: 'focus-boundary'
-  }).addTo(map);
-}
-
 let tileWarning = false;
 let streetMap = null;
 const mapWarning = () => {
@@ -86,7 +62,7 @@ try {
   }).addTo(map);
   streetMap = vectorTiles.getMaplibreMap();
   streetMap.on('error', mapWarning);
-  streetMap.on('load', ensureBaseHouseNumbers);
+  streetMap.on('load', ensureMapEnhancements);
 } catch {
   L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
     maxZoom: 19,
@@ -95,7 +71,7 @@ try {
   }).addTo(map).on('tileerror', mapWarning);
 }
 
-function ensureBaseHouseNumbers() {
+function ensureMapEnhancements() {
   if (!streetMap || !streetMap.isStyleLoaded() || streetMap.getLayer('house-number-labels')) return;
   const firstSymbol = streetMap.getStyle().layers.find((layer) => layer.type === 'symbol')?.id;
   streetMap.addLayer({
@@ -103,21 +79,53 @@ function ensureBaseHouseNumbers() {
     type: 'symbol',
     source: 'openmaptiles',
     'source-layer': 'housenumber',
-    minzoom: 17,
+    minzoom: 16.75,
     layout: {
       'text-field': ['to-string', ['get', 'housenumber']],
-      'text-font': ['Noto Sans Regular'],
-      'text-size': ['interpolate', ['linear'], ['zoom'], 17, 8, 19, 11],
-      'text-allow-overlap': false,
-      'text-padding': 1
+      'text-font': ['Noto Sans Bold'],
+      'text-size': ['interpolate', ['linear'], ['zoom'], 17, 10, 19, 14],
+      'text-allow-overlap': true,
+      'text-ignore-placement': true,
+      'text-padding': 0
     },
     paint: {
-      'text-color': '#fff0d8',
-      'text-halo-color': '#2a2035',
-      'text-halo-width': 1.2,
-      'text-halo-blur': 0.3
+      'text-color': '#fff4d8',
+      'text-halo-color': '#181020',
+      'text-halo-width': 1.8,
+      'text-halo-blur': 0.2
     }
   }, firstSymbol);
+
+  if (Array.isArray(config.focusBoundary) && config.focusBoundary.length > 2) {
+    const boundary = config.focusBoundary.map(([lat, lng]) => [lng, lat]);
+    boundary.push(boundary[0]);
+    streetMap.addSource('arrowbrooke-focus', {
+      type: 'geojson',
+      data: {
+        type: 'Feature',
+        properties: {},
+        geometry: {
+          type: 'Polygon',
+          coordinates: [
+            [[-180, -85], [180, -85], [180, 85], [-180, 85], [-180, -85]],
+            boundary
+          ]
+        }
+      }
+    });
+    streetMap.addLayer({
+      id: 'outside-neighborhood-fog',
+      type: 'fill',
+      source: 'arrowbrooke-focus',
+      paint: { 'fill-color': '#09060f', 'fill-opacity': 0.52 }
+    });
+    streetMap.addLayer({
+      id: 'arrowbrooke-boundary',
+      type: 'line',
+      source: 'arrowbrooke-focus',
+      paint: { 'line-color': '#7185ff', 'line-width': 2.2, 'line-opacity': 0.82 }
+    });
+  }
 }
 
 const markers = L.layerGroup().addTo(map);
