@@ -1,6 +1,6 @@
 import { displayCategory } from './display-category.js';
 import { distanceToHome, findHome, homeKey, homeCenter } from './home-shapes.js';
-import { pickStopName } from './stop-names.js';
+import { pickStopName } from './stop-names.js?v=20261028-many-names';
 import { lookupAddress } from './address-lookup.js';
 
 const $ = (selector) => document.querySelector(selector);
@@ -789,9 +789,10 @@ function showDetail(id, pan = true) {
     <p class="error organizer-edit-error" role="alert"></p>
     <div class="organizer-actions"><button class="primary" type="submit">Save changes</button><button class="danger" id="organizer-remove" type="button">Remove from map</button></div>
   </form>` : '';
-  $('#detail').innerHTML = `<button class="icon-button close-detail" aria-label="Close details">×</button><div class="eyebrow">${isOrganizer ? 'ORGANIZER MODE · ' : ''}${demo ? 'SAMPLE STOP · ' : ''}HALLOWEEN NIGHT</div><h2>${escapeHtml(stop.title)}</h2><div class="detail-tags">${stop.categories.map((key) => `<span class="tag">${categories[key].icon} ${categories[key].label}</span>`).join('')}</div><p>⌖ ${escapeHtml(stop.address)}</p>${stop.notes ? `<p>${escapeHtml(stop.notes)}</p>` : ''}${organizerEditor}<div class="detail-actions"><a class="secondary" href="https://www.google.com/maps/dir/?api=1&destination=${stop.lat},${stop.lng}&travelmode=walking" target="_blank" rel="noopener noreferrer">↗ Directions</a><button class="primary" id="share-stop">Share stop</button></div>${!isOrganizer && db && stop.created_by === currentUserId ? '<button class="secondary" id="remove-stop" style="width:100%;margin-top:10px">Remove my house</button>' : ''}`;
+  $('#detail').innerHTML = `<button class="icon-button close-detail" aria-label="Close details">×</button><div class="eyebrow">${isOrganizer ? 'ORGANIZER MODE · ' : ''}${demo ? 'SAMPLE STOP · ' : ''}HALLOWEEN NIGHT</div><h2>${escapeHtml(stop.title)}</h2><div class="detail-tags">${stop.categories.map((key) => `<span class="tag">${categories[key].icon} ${categories[key].label}</span>`).join('')}</div><p>⌖ ${escapeHtml(stop.address)}</p>${stop.notes ? `<p>${escapeHtml(stop.notes)}</p>` : ''}${organizerEditor}<div class="detail-actions"><button class="secondary" id="directions-stop">↗ Directions</button><button class="primary" id="share-stop">Share stop</button></div>${!isOrganizer && db && stop.created_by === currentUserId ? '<button class="secondary" id="remove-stop" style="width:100%;margin-top:10px">Remove my house</button>' : ''}`;
   $('#detail').hidden = false;
   $('.close-detail').onclick = () => { closeDetail(); render(); };
+  $('#directions-stop').onclick = () => openDirections(stop);
   $('#share-stop').onclick = () => share(id);
   if ($('#organizer-edit')) $('#organizer-edit').onsubmit = async (event) => {
     event.preventDefault();
@@ -918,6 +919,7 @@ async function fillAddressFromPin(lat, lng) {
 
 const dialog = $('#add-dialog');
 const organizerDialog = $('#organizer-dialog');
+const directionsDialog = $('#directions-dialog');
 const formAddressInput = document.querySelector('[name="address"]');
 const formAddressOptions = $('#address-options');
 
@@ -953,6 +955,27 @@ $('#organizer-logout').onclick = async () => {
   await adminDb?.auth.signOut();
   setOrganizerMode(false);
   toast('Organizer mode ended.');
+};
+
+let directionsAddress = '';
+function openDirections(stop) {
+  directionsAddress = stop.address;
+  $('#directions-address').textContent = stop.address;
+  const destination = `${stop.lat},${stop.lng}`;
+  $('#apple-directions').href = `https://maps.apple.com/?daddr=${encodeURIComponent(destination)}&dirflg=w`;
+  $('#google-directions').href = `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(destination)}&travelmode=walking`;
+  $('#waze-directions').href = `https://www.waze.com/ul?ll=${encodeURIComponent(destination)}&navigate=yes`;
+  directionsDialog.showModal();
+}
+$('.close-directions').onclick = () => directionsDialog.close();
+$('#copy-destination').onclick = async () => {
+  try {
+    await navigator.clipboard.writeText(directionsAddress);
+    directionsDialog.close();
+    toast('Address copied.');
+  } catch {
+    toast('Select and copy the address shown above.');
+  }
 };
 
 function chooseFormAddress(address) {

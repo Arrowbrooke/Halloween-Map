@@ -9,7 +9,7 @@
   <link rel="icon" href="icon.svg">
   <link rel="stylesheet" href="vendor/leaflet.css">
   <link rel="stylesheet" href="vendor/maplibre-gl.css">
-  <link rel="stylesheet" href="style.css?v=20261028-mobile-sheet">
+  <link rel="stylesheet" href="style.css?v=20261028-directions-choice">
 </head>
 <body>
   <main>
@@ -124,12 +124,26 @@
     </form>
   </dialog>
 
+  <dialog id="directions-dialog">
+    <div class="dialog-top">
+      <div><div class="eyebrow">CHOOSE YOUR MAP</div><h2>Get directions</h2></div>
+      <button type="button" class="icon-button close-directions" aria-label="Close">×</button>
+    </div>
+    <p id="directions-address" class="muted"></p>
+    <div class="directions-options">
+      <a id="apple-directions" class="secondary" target="_blank" rel="noopener noreferrer">Apple Maps <small>Walking</small></a>
+      <a id="google-directions" class="secondary" target="_blank" rel="noopener noreferrer">Google Maps <small>Walking</small></a>
+      <a id="waze-directions" class="secondary" target="_blank" rel="noopener noreferrer">Waze <small>Navigation</small></a>
+      <button id="copy-destination" class="secondary" type="button">Copy address</button>
+    </div>
+  </dialog>
+
   <div id="toast" role="status" hidden></div>
   <script src="vendor/leaflet.js"></script>
   <script src="vendor/maplibre-gl.js"></script>
   <script src="vendor/leaflet-maplibre-gl.js"></script>
   <script src="vendor/supabase.js"></script>
   <script src="config.js?v=20261028-organizer"></script>
-  <script src="app.js?v=20261028-home-labels-names" type="module"></script>
+  <script src="app.js?v=20261028-directions-choice" type="module"></script>
 </body>
 </html>
