@@ -88,3 +88,4 @@
 @media(max-width:700px){.organizer-edit{padding:12px}.organizer-actions{grid-template-columns:1fr}.organizer-tools{margin-bottom:12px}}
 .directions-options{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:18px}.directions-options .secondary{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px}.directions-options small{font-size:9px;opacity:.72}
 @media(max-width:420px){.directions-options{grid-template-columns:1fr}}
+:root{--yellow:#e7bd3c}.dot.nonfood{background:var(--yellow)}.dot.allthree{background:var(--green)}.stop-icon.nonfood{background:#4b4323}.stop-icon.allthree{background:#253d38}

@@ -28,7 +28,7 @@ Verified homes appear immediately after submission. The database enforces one li
 2. Check the address, map coordinates, categories, and notes.
 3. Delete an invalid entry or change `approval_status` to `rejected` to hide it.
 
-Residents cannot replace an existing listing for the same home. Adult-treat submissions automatically include kids' candy; map color priority is purple for adult treats, orange for candy, and green for decorations only.
+Residents cannot replace an existing listing for the same home. Display colors are orange for candy only, yellow whenever non-food treats are selected without adult treats, purple whenever adult treats are selected with fewer than all three offerings, and green when all three offerings are selected.
 
 ## Organizer mode
 

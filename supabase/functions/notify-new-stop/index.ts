@@ -106,9 +106,9 @@ Deno.serve(async (request) => {
   }
 
   const categoryNames: Record<string, string> = {
-    candy: "Kids' candy",
-    adult: 'Adult treats',
-    decor: 'Decorations'
+    candy: 'Candy',
+    nonfood: 'Non food treats',
+    adult: 'Adult treats'
   };
   const offerings = (stop.categories || []).map((category) => categoryNames[category] || category).join(' + ');
   const message = JSON.stringify({

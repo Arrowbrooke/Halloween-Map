@@ -1,4 +1,4 @@
-import { displayCategory } from './display-category.js';
+import { displayCategory } from './display-category.js?v=20261028-category-colors';
 import { distanceToHome, findHome, homeKey, homeCenter } from './home-shapes.js';
 import { pickStopName } from './stop-names.js?v=20261028-many-names';
 import { lookupAddress } from './address-lookup.js';
@@ -7,9 +7,15 @@ const $ = (selector) => document.querySelector(selector);
 const config = window.HALLOWEEN_CONFIG;
 const demo = new URLSearchParams(location.search).get('demo') === '1';
 const categories = {
-  candy: { label: 'Kids’ candy', icon: '🍬', color: '#e97632' },
-  adult: { label: 'Adult treats', icon: '🥤', color: '#a275df' },
-  decor: { label: 'Decorations', icon: '👻', color: '#43ae87' }
+  candy: { label: 'Candy', icon: '🍬' },
+  nonfood: { label: 'Non Food Treats', icon: '🎁' },
+  adult: { label: 'Adult Treats', icon: '🥤' }
+};
+const displayCategories = {
+  candy: { label: 'Candy Only', icon: '🍬', color: '#e97632' },
+  nonfood: { label: 'Non Food Treats', icon: '🎁', color: '#e7bd3c' },
+  adult: { label: 'Adult Treats', icon: '🥤', color: '#a275df' },
+  allthree: { label: 'All Three', icon: '🎃', color: '#43ae87' }
 };
 const escapeHtml = (value) => String(value ?? '').replace(/[&<>"']/g, (character) => ({
   '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
@@ -18,9 +24,9 @@ const escapeHtml = (value) => String(value ?? '').replace(/[&<>"']/g, (character
 const demoStops = [
   { id: 'demo-1', title: 'The Pumpkin Porch', address: 'Sample stop · Gold Mine Trail', lat: 33.2473, lng: -96.9017, categories: ['candy'], notes: 'Sample home with candy for trick-or-treaters.' },
   { id: 'demo-2', title: 'Boo & Brews', address: 'Sample stop · Tomahawk Trail', lat: 33.2474, lng: -96.8973, categories: ['adult', 'candy'], notes: 'Sample home with treats for kids and grown-ups.' },
-  { id: 'demo-3', title: 'The Haunted Garden', address: 'Sample stop · Pleasant Knoll Trail', lat: 33.2491, lng: -96.9027, categories: ['decor'], notes: 'Sample home with a spooky light show.' },
-  { id: 'demo-4', title: 'Candy Corner', address: 'Sample stop · Starlight Avenue', lat: 33.246, lng: -96.9078, categories: ['candy', 'decor'], notes: 'Sample home with candy and decorations.' },
-  { id: 'demo-5', title: 'The Witching Hour', address: 'Sample stop · Berry Ridge Trail', lat: 33.2502, lng: -96.9005, categories: ['adult'], notes: 'Sample grown-up treat stop.' }
+  { id: 'demo-3', title: 'The Teal Pumpkin Porch', address: 'Sample stop · Pleasant Knoll Trail', lat: 33.2491, lng: -96.9027, categories: ['nonfood'], notes: 'Sample home with non-food treats.' },
+  { id: 'demo-4', title: 'Candy & Trinkets', address: 'Sample stop · Starlight Avenue', lat: 33.246, lng: -96.9078, categories: ['candy', 'nonfood'], notes: 'Sample home with candy and non-food treats.' },
+  { id: 'demo-5', title: 'The Witching Hour', address: 'Sample stop · Berry Ridge Trail', lat: 33.2502, lng: -96.9005, categories: ['candy', 'nonfood', 'adult'], notes: 'Sample home offering all three.' }
 ];
 
 let stops = [];
@@ -258,13 +264,13 @@ async function exportHomeList() {
       .eq('approval_status', 'approved')
       .order('address');
     if (error) throw error;
-    const headers = ['Address', 'Display name', 'Kids candy', 'Adult treats', 'Decorations', 'Notes', 'Added', 'Latitude', 'Longitude'];
+    const headers = ['Address', 'Display name', 'Candy', 'Non food treats', 'Adult treats', 'Notes', 'Added', 'Latitude', 'Longitude'];
     const rows = (data || []).map((stop) => [
       stop.address,
       stop.title,
       stop.categories?.includes('candy') ? 'Yes' : 'No',
+      stop.categories?.includes('nonfood') ? 'Yes' : 'No',
       stop.categories?.includes('adult') ? 'Yes' : 'No',
-      stop.categories?.includes('decor') ? 'Yes' : 'No',
       stop.notes,
       stop.created_at,
       stop.lat,
@@ -702,7 +708,7 @@ function showWholeNeighborhood(animate = false) {
 }
 
 function mapDot(stop) {
-  const color = categories[displayCategory(stop)].color;
+  const color = displayCategories[displayCategory(stop)].color;
   return L.divIcon({
     className: 'pin-shell', iconSize: [28, 28], iconAnchor: [14, 14],
     html: `<span class="overview-dot" style="background:${color}"></span>`
@@ -861,7 +867,7 @@ function selectSearchResult(result) {
 function pinIcon(stop) {
   const zoom = map.getZoom();
   const [width, height] = zoom <= 14 ? [11, 20] : zoom <= 15 ? [15, 27] : zoom <= 16 ? [20, 36] : [24, 43];
-  const color = categories[displayCategory(stop)].color;
+  const color = displayCategories[displayCategory(stop)].color;
   const clipId = `coffin-pin-${++pinSequence}`;
   const outline = 'M7 1H19L25 11L20 33L13 43L6 33L1 11Z';
   const face = zoom >= 16 ? '<path d="m6 10 5 1-4 4zm14 0-5 1 4 4zM7 19l3 1 3-2 3 2 3-1-2 5H9Z" fill="#29182e"/>' : '';
@@ -875,7 +881,7 @@ function pinIcon(stop) {
 function visibleStops() {
   const query = $('#search').value.trim().toLowerCase();
   return stops.filter((stop) =>
-    (!filter.size || stop.categories.some((category) => filter.has(category))) &&
+    (!filter.size || filter.has(displayCategory(stop))) &&
     `${stop.title} ${stop.address} ${stop.notes}`.toLowerCase().includes(query)
   );
 }
@@ -909,7 +915,7 @@ function drawMapStops() {
       continue;
     }
 
-    const color = categories[displayCategory(stop)].color;
+    const color = displayCategories[displayCategory(stop)].color;
     const feature = { type: 'Feature', properties: {}, geometry: home };
     L.geoJSON(feature, { renderer: homeRenderer, interactive: false, style: { fill: false, color, weight: 7, opacity: 0.18, lineJoin: 'round' } }).addTo(houseLayers);
     const layer = L.geoJSON(feature, {
@@ -942,7 +948,7 @@ function render() {
   $('#count').textContent = `${visible.length} stop${visible.length === 1 ? '' : 's'}`;
   $('#stop-list').innerHTML = visible.length ? visible.map((stop) => {
     const category = displayCategory(stop);
-    const categoryInfo = categories[category];
+    const categoryInfo = displayCategories[category];
     return `<button class="stop-row" data-stop="${escapeHtml(stop.id)}"><span class="stop-icon ${category}">${categoryInfo.icon}</span><span class="stop-text"><span class="stop-title">${escapeHtml(stop.title)}</span><span class="stop-address">${escapeHtml(stop.address)}</span><span class="stop-badge">${stop.categories.map((key) => categories[key].label).join(' · ')}</span></span></button>`;
   }).join('') : `<div class="empty"><span class="empty-icon">🎃</span><strong>${stops.length ? 'No matching stops' : 'Be the first on the block'}</strong>${stops.length ? 'Try another filter or search.' : 'Add your house to the neighborhood Halloween map.'}</div>`;
   $('#stop-list').querySelectorAll('[data-stop]').forEach((button) => { button.onclick = () => showDetail(button.dataset.stop); });
@@ -980,7 +986,6 @@ function showDetail(id, pan = true) {
     event.preventDefault();
     const editForm = new FormData(event.target);
     const selectedCategories = [...new Set(editForm.getAll('categories'))];
-    if (selectedCategories.includes('adult') && !selectedCategories.includes('candy')) selectedCategories.push('candy');
     const errorElement = $('.organizer-edit-error');
     if (!selectedCategories.length) { errorElement.textContent = 'Choose at least one offering, or remove the home from the map.'; return; }
     const saveButton = event.target.querySelector('[type="submit"]');
@@ -1272,8 +1277,7 @@ $('#stop-form').onsubmit = async (event) => {
   errorElement.textContent = '';
   if (submissionsClosed()) { errorElement.textContent = 'Halloween home submissions are closed for this event.'; return; }
   const selectedCategories = [...new Set(form.getAll('categories'))];
-  if (selectedCategories.includes('adult') && !selectedCategories.includes('candy')) selectedCategories.push('candy');
-  if (!selectedCategories.length) { errorElement.textContent = 'Choose at least one kind of treat or decoration.'; return; }
+  if (!selectedCategories.length) { errorElement.textContent = 'Choose at least one kind of treat.'; return; }
   if (!chosenLocation) { errorElement.textContent = 'Choose your house location on the map first.'; return; }
   const title = form.get('title').trim() || pickStopName(stops.map((stop) => stop.title));
   const address = form.get('address').trim();

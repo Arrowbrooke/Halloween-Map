@@ -14,7 +14,7 @@
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="stylesheet" href="vendor/leaflet.css">
   <link rel="stylesheet" href="vendor/maplibre-gl.css">
-  <link rel="stylesheet" href="style.css?v=20261028-address-hardening">
+  <link rel="stylesheet" href="style.css?v=20261028-category-colors">
 </head>
 <body>
   <main>
@@ -29,9 +29,10 @@
       <div id="search-results" class="search-results" role="listbox" aria-label="Address search results" hidden></div>
       <div class="filters" aria-label="Filter stops">
         <button class="chip active" data-category="all" aria-pressed="true">All stops</button>
-        <button class="chip" data-category="candy" aria-pressed="false"><i class="dot candy"></i>Kids’ candy</button>
-        <button class="chip" data-category="adult" aria-pressed="false"><i class="dot adult"></i>Adult treats</button>
-        <button class="chip" data-category="decor" aria-pressed="false"><i class="dot decor"></i>Decorations</button>
+        <button class="chip" data-category="candy" aria-pressed="false"><i class="dot candy"></i>Candy Only</button>
+        <button class="chip" data-category="nonfood" aria-pressed="false"><i class="dot nonfood"></i>Non Food Treats</button>
+        <button class="chip" data-category="adult" aria-pressed="false"><i class="dot adult"></i>Adult Treats</button>
+        <button class="chip" data-category="allthree" aria-pressed="false"><i class="dot allthree"></i>All Three</button>
       </div>
     </header>
 
@@ -107,13 +108,13 @@
       <fieldset>
         <legend>What’s here? <span class="muted">Choose all that apply</span></legend>
         <div class="category-options">
-          <label><input name="categories" type="checkbox" value="candy"><span>🍬 Kids’ candy</span></label>
-          <label><input name="categories" type="checkbox" value="adult"><span>🥤 Adult treats</span></label>
-          <label><input name="categories" type="checkbox" value="decor"><span>👻 Decorations</span></label>
+          <label><input name="categories" type="checkbox" value="candy"><span>🍬 Candy</span></label>
+          <label><input name="categories" type="checkbox" value="nonfood"><span>🎁 Non Food Treats</span></label>
+          <label><input name="categories" type="checkbox" value="adult"><span>🥤 Adult Treats</span></label>
         </div>
       </fieldset>
       <label>Good to know
-        <textarea name="notes" maxlength="400" rows="2" placeholder="Full-size candy? Allergy-friendly treats? A spooky light show?"></textarea>
+        <textarea name="notes" maxlength="400" rows="2" placeholder="Full-size candy? Teal pumpkin treats? Something special for adults?"></textarea>
       </label>
       <p id="form-error" class="error" role="alert"></p>
       <button type="submit" id="save-stop" class="primary">Submit my house</button>
@@ -176,6 +177,6 @@
   <script src="vendor/leaflet-maplibre-gl.js"></script>
   <script src="vendor/supabase.js"></script>
   <script src="config.js?v=20261028-push-notifications"></script>
-  <script src="app.js?v=20261028-address-hardening" type="module"></script>
+  <script src="app.js?v=20261028-category-colors" type="module"></script>
 </body>
 </html>

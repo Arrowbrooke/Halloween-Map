@@ -11,7 +11,7 @@ create table if not exists public.stops (
   approval_status text not null default 'approved' check (approval_status in ('approved','rejected')),
   categories text[] not null check (
     cardinality(categories) between 1 and 3 and
-    categories <@ array['candy','adult','decor']::text[] and
+    categories <@ array['candy','nonfood','adult']::text[] and
     array_position(categories, null) is null
   ),
   lat double precision not null check (lat between 33.23 and 33.27),
