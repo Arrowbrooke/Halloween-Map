@@ -153,7 +153,7 @@ function ensureMapEnhancements() {
         'fill-pattern': 'arrowbrooke-fog-clouds',
         'fill-opacity': 0.9,
         'fill-translate': [0, 0],
-        'fill-translate-anchor': 'viewport'
+        'fill-translate-anchor': 'map'
       }
     });
     streetMap.addLayer({
@@ -174,7 +174,6 @@ function ensureMapEnhancements() {
       const animateFog = (time) => {
         if (time - fogLastFrame > 80 && streetMap?.getLayer('outside-neighborhood-fog-clouds')) {
           fogLastFrame = time;
-          streetMap.setPaintProperty('outside-neighborhood-fog-clouds', 'fill-translate', [(time / 170) % fogSize, (time / 360) % fogSize]);
           streetMap.setPaintProperty('outside-neighborhood-fog-clouds', 'fill-opacity', 0.82 + Math.sin(time / 2400) * 0.12);
         }
         fogAnimationFrame = requestAnimationFrame(animateFog);
