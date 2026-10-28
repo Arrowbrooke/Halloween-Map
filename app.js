@@ -33,6 +33,7 @@ let userMarker = null;
 let searchMarker = null;
 let searchTimer = null;
 let searchRequest = 0;
+let fogAnimationFrame = null;
 
 function toast(message) {
   $('#toast').textContent = message;
@@ -113,18 +114,74 @@ function ensureMapEnhancements() {
         }
       }
     });
+
+    const fogSize = 256;
+    const fogCanvas = document.createElement('canvas');
+    fogCanvas.width = fogSize;
+    fogCanvas.height = fogSize;
+    const fogContext = fogCanvas.getContext('2d');
+    let fogSeed = 24681357;
+    const fogRandom = () => {
+      fogSeed = (fogSeed * 1664525 + 1013904223) >>> 0;
+      return fogSeed / 4294967296;
+    };
+    for (let cloud = 0; cloud < 22; cloud += 1) {
+      const x = fogRandom() * fogSize;
+      const y = fogRandom() * fogSize;
+      const radius = 24 + fogRandom() * 58;
+      for (const offsetX of [-fogSize, 0, fogSize]) for (const offsetY of [-fogSize, 0, fogSize]) {
+        const gradient = fogContext.createRadialGradient(x + offsetX, y + offsetY, 0, x + offsetX, y + offsetY, radius);
+        gradient.addColorStop(0, `rgba(248,252,255,${0.12 + fogRandom() * 0.14})`);
+        gradient.addColorStop(0.5, 'rgba(241,248,252,0.09)');
+        gradient.addColorStop(1, 'rgba(235,244,250,0)');
+        fogContext.fillStyle = gradient;
+        fogContext.fillRect(x + offsetX - radius, y + offsetY - radius, radius * 2, radius * 2);
+      }
+    }
+    streetMap.addImage('arrowbrooke-fog-clouds', fogContext.getImageData(0, 0, fogSize, fogSize), { pixelRatio: 1 });
     streetMap.addLayer({
       id: 'outside-neighborhood-fog',
       type: 'fill',
       source: 'arrowbrooke-focus',
-      paint: { 'fill-color': '#08050e', 'fill-opacity': 0.7 }
+      paint: { 'fill-color': '#dce8ed', 'fill-opacity': 0.2 }
+    });
+    streetMap.addLayer({
+      id: 'outside-neighborhood-fog-clouds',
+      type: 'fill',
+      source: 'arrowbrooke-focus',
+      paint: {
+        'fill-pattern': 'arrowbrooke-fog-clouds',
+        'fill-opacity': 0.9,
+        'fill-translate': [0, 0],
+        'fill-translate-anchor': 'viewport'
+      }
+    });
+    streetMap.addLayer({
+      id: 'arrowbrooke-boundary-haze',
+      type: 'line',
+      source: 'arrowbrooke-focus',
+      paint: { 'line-color': '#eef8fc', 'line-width': 20, 'line-blur': 12, 'line-opacity': 0.2 }
     });
     streetMap.addLayer({
       id: 'arrowbrooke-boundary',
       type: 'line',
       source: 'arrowbrooke-focus',
-      paint: { 'line-color': '#4c8dff', 'line-width': 3.5, 'line-opacity': 1 }
+      paint: { 'line-color': '#d9f2fa', 'line-width': 1.4, 'line-blur': 0.8, 'line-opacity': 0.62 }
     });
+
+    if (!matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      let fogLastFrame = 0;
+      const animateFog = (time) => {
+        if (time - fogLastFrame > 80 && streetMap?.getLayer('outside-neighborhood-fog-clouds')) {
+          fogLastFrame = time;
+          streetMap.setPaintProperty('outside-neighborhood-fog-clouds', 'fill-translate', [(time / 170) % fogSize, (time / 360) % fogSize]);
+          streetMap.setPaintProperty('outside-neighborhood-fog-clouds', 'fill-opacity', 0.82 + Math.sin(time / 2400) * 0.12);
+        }
+        fogAnimationFrame = requestAnimationFrame(animateFog);
+      };
+      if (fogAnimationFrame) cancelAnimationFrame(fogAnimationFrame);
+      fogAnimationFrame = requestAnimationFrame(animateFog);
+    }
   }
 }
 
