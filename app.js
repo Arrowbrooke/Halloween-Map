@@ -38,12 +38,12 @@ let neighborhoodAddressData = { type: 'FeatureCollection', features: [] };
 let neighborhoodAddresses = [];
 let addressDataLoaded = false;
 
-const streetAbbreviations = new Set(['AVE', 'BLVD', 'CT', 'DR', 'FM', 'LN', 'PL', 'PKWY', 'RD', 'ST', 'TRL', 'WAY']);
+const streetUppercaseWords = new Set(['FM']);
 
 function displayStreetName(value) {
   return String(value || '').toLowerCase().split(/\s+/).map((part) => {
     const upper = part.toUpperCase();
-    return streetAbbreviations.has(upper) ? upper : `${part.charAt(0).toUpperCase()}${part.slice(1)}`;
+    return streetUppercaseWords.has(upper) ? upper : `${part.charAt(0).toUpperCase()}${part.slice(1)}`;
   }).join(' ');
 }
 
@@ -88,6 +88,7 @@ function status(message, live = false) {
 }
 
 const map = L.map('map', { zoomControl: false }).setView(config.center, config.zoom);
+map.attributionControl.addAttribution('Addresses: <a href="https://openaddresses.io/">OpenAddresses</a> / Denton County');
 let tileWarning = false;
 let streetMap = null;
 const mapWarning = () => {
@@ -115,35 +116,59 @@ try {
 const addressDataPromise = loadNeighborhoodAddresses();
 
 function organicFogBoundary() {
-  const northernEdge = Array.isArray(config.frontierAlignment) && config.frontierAlignment.length > 1
-    ? config.frontierAlignment.map(([lat, lng]) => [lat + (config.frontierFogOffsetMeters || 0) / 111320, lng])
-    : config.focusBoundary.slice(0, 2);
+  const roadOffset = config.fogRoadOffsetMeters || 18;
+  const longitudeMeters = 111320 * Math.cos(config.center[0] * Math.PI / 180);
+  const move = (points, northMeters, eastMeters) => points.map(([lat, lng]) => [lat + northMeters / 111320, lng + eastMeters / longitudeMeters]);
+  const cornerArc = ([lat, lng], startDegrees, endDegrees) => {
+    const points = [];
+    for (let step = 1; step < 5; step += 1) {
+      const angle = (startDegrees + (endDegrees - startDegrees) * step / 5) * Math.PI / 180;
+      points.push([lat + Math.sin(angle) * roadOffset / 111320, lng + Math.cos(angle) * roadOffset / longitudeMeters]);
+    }
+    return points;
+  };
+  const north = move(config.frontierAlignment || config.focusBoundary.slice(0, 2), roadOffset, 0);
+  const east = move(config.fm1385Alignment || config.focusBoundary.slice(1, 3), 0, roadOffset);
+  const south = move(config.southernAlignment || config.focusBoundary.slice(2, 4), -roadOffset, 0);
+  const west = move(config.winnRidgeAlignment || [config.focusBoundary[3], config.focusBoundary[0]], 0, -roadOffset);
   const structuralBoundary = [
-    ...northernEdge,
-    config.focusBoundary[2],
-    config.focusBoundary[3]
+    ...north,
+    ...cornerArc(config.focusBoundary[1], 90, 0),
+    ...east,
+    ...cornerArc(config.focusBoundary[2], 0, -90),
+    ...south,
+    ...cornerArc(config.focusBoundary[3], -90, -180),
+    ...west,
+    ...cornerArc(config.focusBoundary[0], 180, 90)
   ];
   const organic = [];
   const wander = config.fogEdgeWanderMeters || 4;
-  for (let edge = 0; edge < structuralBoundary.length; edge += 1) {
-    const start = structuralBoundary[edge];
+  const segments = structuralBoundary.map((start, edge) => {
     const end = structuralBoundary[(edge + 1) % structuralBoundary.length];
     const meanLat = (start[0] + end[0]) / 2;
     const northMeters = (end[0] - start[0]) * 111320;
     const eastMeters = (end[1] - start[1]) * 111320 * Math.cos(meanLat * Math.PI / 180);
     const length = Math.hypot(northMeters, eastMeters);
+    return { start, end, meanLat, northMeters, eastMeters, length };
+  });
+  const perimeter = segments.reduce((total, segment) => total + segment.length, 0);
+  const cycles = Math.max(8, Math.round(perimeter / 95));
+  let traveled = 0;
+  for (const segment of segments) {
+    const { start, end, meanLat, northMeters, eastMeters, length } = segment;
     const pieces = Math.max(2, Math.ceil(length / 22));
     const normalNorth = -eastMeters / length;
     const normalEast = northMeters / length;
     for (let piece = 0; piece < pieces; piece += 1) {
       const ratio = piece / pieces;
-      const phase = edge * 2.173 + ratio * Math.PI * 2;
-      const offset = (Math.sin(phase * 1.7) * 0.58 + Math.sin(phase * 4.1 + 0.8) * 0.28 + Math.sin(phase * 8.7) * 0.14) * wander;
+      const phase = Math.PI * 2 * cycles * (traveled + ratio * length) / perimeter;
+      const offset = (Math.sin(phase) * 0.58 + Math.sin(phase * 3 + 0.8) * 0.28 + Math.sin(phase * 7) * 0.14) * wander;
       organic.push([
         start[0] + (end[0] - start[0]) * ratio + normalNorth * offset / 111320,
         start[1] + (end[1] - start[1]) * ratio + normalEast * offset / (111320 * Math.cos(meanLat * Math.PI / 180))
       ]);
     }
+    traveled += length;
   }
   return organic;
 }
@@ -235,18 +260,21 @@ function ensureMapEnhancements() {
       id: 'arrowbrooke-fog-feather-wide',
       type: 'line',
       source: 'arrowbrooke-focus',
+      layout: { 'line-join': 'round', 'line-cap': 'round' },
       paint: { 'line-color': '#f4f9fb', 'line-width': 78, 'line-blur': 34, 'line-opacity': 0.12 }
     });
     streetMap.addLayer({
       id: 'arrowbrooke-fog-feather-mid',
       type: 'line',
       source: 'arrowbrooke-focus',
+      layout: { 'line-join': 'round', 'line-cap': 'round' },
       paint: { 'line-color': '#f7fbfc', 'line-width': 38, 'line-blur': 18, 'line-opacity': 0.16 }
     });
     streetMap.addLayer({
       id: 'arrowbrooke-fog-feather-soft',
       type: 'line',
       source: 'arrowbrooke-focus',
+      layout: { 'line-join': 'round', 'line-cap': 'round' },
       paint: { 'line-color': '#ffffff', 'line-width': 16, 'line-blur': 9, 'line-opacity': 0.11 }
     });
 
