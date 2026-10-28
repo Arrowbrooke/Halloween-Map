@@ -500,6 +500,25 @@ if (streetMap) {
 }
 map.on('moveend', scheduleHomes);
 
+function showWholeNeighborhood(animate = false) {
+  if (innerWidth > 700 || !Array.isArray(config.focusBoundary)) {
+    map.setView(config.center, config.zoom, { animate });
+    return;
+  }
+  requestAnimationFrame(() => {
+    const sheetHeight = document.querySelector('.explore')?.getBoundingClientRect().height || innerHeight * 0.34;
+    const navigationHeight = document.querySelector('.bottom-nav')?.getBoundingClientRect().height || 64;
+    const searchBottom = document.querySelector('.search-panel')?.getBoundingClientRect().bottom || 145;
+    map.invalidateSize(false);
+    map.fitBounds(L.latLngBounds(config.focusBoundary), {
+      paddingTopLeft: [16, Math.ceil(searchBottom + 12)],
+      paddingBottomRight: [16, Math.ceil(sheetHeight + navigationHeight + 14)],
+      maxZoom: 16,
+      animate
+    });
+  });
+}
+
 function mapDot(stop) {
   const color = categories[displayCategory(stop)].color;
   return L.divIcon({
@@ -1100,7 +1119,7 @@ $('#search-results').onclick = (event) => {
 };
 document.addEventListener('click', (event) => { if (!event.target.closest('.search-panel')) hideSearchResults(); });
 $('#explore-tab').onclick = () => setSheet(true);
-$('#home').onclick = () => map.setView(config.center, config.zoom);
+$('#home').onclick = () => showWholeNeighborhood(true);
 $('#zoom-in').onclick = () => map.zoomIn();
 $('#zoom-out').onclick = () => map.zoomOut();
 $('#share').onclick = () => share();
@@ -1164,10 +1183,59 @@ map.on('zoomend', render);
 initialize();
 
 function setSheet(expanded) {
-  document.body.classList.toggle('sheet-expanded', Boolean(expanded));
-  document.body.classList.toggle('sheet-minimized', !expanded);
-  $('#sheet-toggle').setAttribute('aria-expanded', String(Boolean(expanded)));
-  $('#sheet-toggle').setAttribute('aria-label', expanded ? 'Minimize stop list' : 'Open stop list');
+  setSheetState(expanded ? 'expanded' : 'minimized');
+}
+
+function setSheetState(state) {
+  document.documentElement.style.removeProperty('--sheet-height');
+  document.body.classList.toggle('sheet-expanded', state === 'expanded');
+  document.body.classList.toggle('sheet-minimized', state === 'minimized');
+  const expanded = state === 'expanded';
+  $('#sheet-toggle').setAttribute('aria-expanded', String(expanded));
+  $('#sheet-toggle').setAttribute('aria-label', state === 'minimized' ? 'Open stop list' : expanded ? 'Minimize stop list' : 'Expand stop list');
   document.querySelector('.explore').scrollTop = 0;
 }
-$('#sheet-toggle').onclick = () => setSheet(!document.body.classList.contains('sheet-expanded'));
+
+const sheetHandle = $('#sheet-toggle');
+let sheetDrag = null;
+let suppressSheetClick = false;
+sheetHandle.addEventListener('pointerdown', (event) => {
+  if (innerWidth > 700) return;
+  const panel = document.querySelector('.explore');
+  sheetDrag = { startY: event.clientY, startHeight: panel.getBoundingClientRect().height, pointerId: event.pointerId, moved: false };
+  sheetHandle.setPointerCapture(event.pointerId);
+  document.body.classList.add('sheet-dragging');
+  document.body.classList.remove('sheet-expanded', 'sheet-minimized');
+  document.documentElement.style.setProperty('--sheet-height', `${sheetDrag.startHeight}px`);
+});
+sheetHandle.addEventListener('pointermove', (event) => {
+  if (!sheetDrag || event.pointerId !== sheetDrag.pointerId) return;
+  const distance = sheetDrag.startY - event.clientY;
+  if (Math.abs(distance) > 5) sheetDrag.moved = true;
+  const height = Math.max(64, Math.min(innerHeight * 0.72, sheetDrag.startHeight + distance));
+  document.documentElement.style.setProperty('--sheet-height', `${height}px`);
+});
+function finishSheetDrag(event) {
+  if (!sheetDrag || event.pointerId !== sheetDrag.pointerId) return;
+  const height = document.querySelector('.explore').getBoundingClientRect().height;
+  const stops = [
+    { state: 'minimized', height: 64 },
+    { state: 'medium', height: innerHeight * 0.34 },
+    { state: 'expanded', height: innerHeight * 0.67 }
+  ];
+  const nearest = stops.reduce((best, stop) => Math.abs(stop.height - height) < Math.abs(best.height - height) ? stop : best);
+  suppressSheetClick = sheetDrag.moved;
+  sheetDrag = null;
+  document.body.classList.remove('sheet-dragging');
+  setSheetState(nearest.state);
+}
+sheetHandle.addEventListener('pointerup', finishSheetDrag);
+sheetHandle.addEventListener('pointercancel', finishSheetDrag);
+sheetHandle.onclick = () => {
+  if (suppressSheetClick) { suppressSheetClick = false; return; }
+  const nextState = document.body.classList.contains('sheet-expanded') ? 'medium' : 'expanded';
+  setSheetState(nextState);
+};
+
+showWholeNeighborhood(false);
+window.addEventListener('orientationchange', () => setTimeout(() => showWholeNeighborhood(false), 250));

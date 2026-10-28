@@ -19,8 +19,9 @@
   .sheet-minimized h1{font-size:16px}
   .sheet-minimized .ghost{font-size:20px}
   .explore{height:var(--sheet-height);max-height:none;padding-top:0;scrollbar-width:thin}
-  .sheet-handle{display:flex;align-items:center;justify-content:center;width:100%;height:28px;background:transparent;margin:0;touch-action:none}
-  .sheet-handle span{width:36px;height:4px;background:#745784;border-radius:4px}
+  .sheet-handle{display:flex;align-items:center;justify-content:center;width:100%;height:34px;background:transparent;margin:0;touch-action:none;cursor:ns-resize}
+  .sheet-handle span{width:44px;height:5px;background:#8b6b9b;border-radius:4px;box-shadow:0 0 0 7px #8b6b9b12}
+  .sheet-dragging .sheet-handle span{background:#f0a14d;box-shadow:0 0 0 8px #f0a14d1f}
   .desktop-title{display:none}.phone-title{display:inline}
   h1{font-size:20px;letter-spacing:-.4px}.title-row{margin:7px 0 11px}.ghost{font-size:24px}
   .intro{display:none}.connection{font-size:10px;padding:7px 9px}.progress-row{margin-top:10px}.progress-track{margin:7px 0 18px}
