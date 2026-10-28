@@ -1237,5 +1237,9 @@ sheetHandle.onclick = () => {
   setSheetState(nextState);
 };
 
-showWholeNeighborhood(false);
+window.addEventListener('load', () => {
+  // Mobile Safari settles its visual viewport and safe-area measurements after
+  // the document loads. Use the same settled calculation as the Home button.
+  setTimeout(() => showWholeNeighborhood(false), innerWidth <= 700 ? 450 : 0);
+}, { once: true });
 window.addEventListener('orientationchange', () => setTimeout(() => showWholeNeighborhood(false), 250));
