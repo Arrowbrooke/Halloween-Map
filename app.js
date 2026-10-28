@@ -92,6 +92,23 @@ function mapDot(stop) {
   });
 }
 
+function houseNumber(address) {
+  const match = String(address ?? '').trim().match(/^(\d+[A-Za-z]?)(?:\s|$)/);
+  return match ? match[1] : '';
+}
+
+function addHouseNumber(stop, position, abovePin = false) {
+  const number = houseNumber(stop.address);
+  if (!number || map.getZoom() < 18) return;
+  const icon = L.divIcon({
+    className: 'house-number-shell',
+    iconSize: [46, 22],
+    iconAnchor: [23, abovePin ? 58 : 11],
+    html: `<span class="house-number">${escapeHtml(number)}</span>`
+  });
+  L.marker(position, { icon, interactive: false, keyboard: false, zIndexOffset: 1000 }).addTo(markers);
+}
+
 function pinIcon(stop) {
   const zoom = map.getZoom();
   const [width, height] = zoom <= 14 ? [11, 20] : zoom <= 15 ? [15, 27] : zoom <= 16 ? [20, 36] : [24, 43];
@@ -139,6 +156,7 @@ function drawMapStops() {
     }
     if (!home) {
       L.marker([stop.lat, stop.lng], { icon: pinIcon(stop), title: stop.title, alt: stop.title }).addTo(markers).on('click', () => showDetail(stop.id));
+      addHouseNumber(stop, [stop.lat, stop.lng], true);
       continue;
     }
 
@@ -165,6 +183,7 @@ function drawMapStops() {
     });
     L.geoJSON(feature, { renderer: homeRenderer, bubblingMouseEvents: false, style: { color, weight: 14, opacity: 0, fillOpacity: 0, className: 'house-hit-area' } }).addTo(houseLayers).on('click', () => showDetail(stop.id));
     layer.bringToFront();
+    addHouseNumber(stop, homeCenter(home));
   }
 }
 
