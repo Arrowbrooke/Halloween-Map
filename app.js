@@ -229,7 +229,7 @@ function ensureMapEnhancements() {
       }
     });
 
-    const fogSize = 256;
+    const fogSize = 512;
     const fogCanvas = document.createElement('canvas');
     fogCanvas.width = fogSize;
     fogCanvas.height = fogSize;
@@ -239,10 +239,10 @@ function ensureMapEnhancements() {
       fogSeed = (fogSeed * 1664525 + 1013904223) >>> 0;
       return fogSeed / 4294967296;
     };
-    for (let cloud = 0; cloud < 22; cloud += 1) {
+    for (let cloud = 0; cloud < 42; cloud += 1) {
       const x = fogRandom() * fogSize;
       const y = fogRandom() * fogSize;
-      const radius = 24 + fogRandom() * 58;
+      const radius = 38 + fogRandom() * 82;
       for (const offsetX of [-fogSize, 0, fogSize]) for (const offsetY of [-fogSize, 0, fogSize]) {
         const gradient = fogContext.createRadialGradient(x + offsetX, y + offsetY, 0, x + offsetX, y + offsetY, radius);
         gradient.addColorStop(0, `rgba(248,252,255,${0.12 + fogRandom() * 0.14})`);
@@ -263,10 +263,10 @@ function ensureMapEnhancements() {
       id: 'outside-neighborhood-fog-clouds',
       type: 'fill',
       source: 'arrowbrooke-focus',
-      minzoom: 15.3,
+      minzoom: 14.2,
       paint: {
         'fill-pattern': 'arrowbrooke-fog-clouds',
-        'fill-opacity': 0.74,
+        'fill-opacity': ['interpolate', ['linear'], ['zoom'], 14.2, 0.38, 15.2, 0.68, 16, 0.78, 18, 0.86],
         'fill-translate': [0, 0],
         'fill-translate-anchor': 'map'
       }
@@ -309,7 +309,10 @@ function ensureMapEnhancements() {
       const animateFog = (time) => {
         if (time - fogLastFrame > 80 && streetMap?.getLayer('outside-neighborhood-fog-clouds')) {
           fogLastFrame = time;
-          streetMap.setPaintProperty('outside-neighborhood-fog-clouds', 'fill-opacity', 0.82 + Math.sin(time / 2400) * 0.12);
+          streetMap.setPaintProperty('outside-neighborhood-fog-clouds', 'fill-translate', [
+            Math.sin(time / 14000) * 12,
+            Math.cos(time / 18000) * 8
+          ]);
         }
         fogAnimationFrame = requestAnimationFrame(animateFog);
       };
