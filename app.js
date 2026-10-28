@@ -27,6 +27,8 @@ let stops = [];
 let selectedId = null;
 let filter = new Set();
 let db = null;
+let adminDb = null;
+let isOrganizer = false;
 let currentUserId = null;
 let chosenLocation = null;
 let chosenAddressKey = '';
@@ -91,6 +93,18 @@ function toast(message) {
 function status(message, live = false) {
   $('#connection').textContent = message;
   $('#connection').classList.toggle('live', live);
+}
+
+function setOrganizerMode(active) {
+  isOrganizer = active;
+  document.body.classList.toggle('organizer-mode', active);
+  $('#organizer-login').hidden = active;
+  $('#organizer-tools').hidden = !active;
+  if (selectedId) showDetail(selectedId, false);
+}
+
+function isOrganizerSession(session) {
+  return Boolean(session?.user?.email && session.user.email.toLowerCase() === String(config.organizerEmail || '').toLowerCase());
 }
 
 const map = L.map('map', { zoomControl: false }).setView(config.center, config.zoom);
@@ -747,10 +761,49 @@ function showDetail(id, pan = true) {
   selectedId = id;
   drawMapStops();
   if (innerWidth <= 700) setSheet(false);
-  $('#detail').innerHTML = `<button class="icon-button close-detail" aria-label="Close details">×</button><div class="eyebrow">${demo ? 'SAMPLE STOP · ' : ''}HALLOWEEN NIGHT</div><h2>${escapeHtml(stop.title)}</h2><div class="detail-tags">${stop.categories.map((key) => `<span class="tag">${categories[key].icon} ${categories[key].label}</span>`).join('')}</div><p>⌖ ${escapeHtml(stop.address)}</p>${stop.notes ? `<p>${escapeHtml(stop.notes)}</p>` : ''}<div class="detail-actions"><a class="secondary" href="https://www.google.com/maps/dir/?api=1&destination=${stop.lat},${stop.lng}&travelmode=walking" target="_blank" rel="noopener noreferrer">↗ Directions</a><button class="primary" id="share-stop">Share stop</button></div>${db && stop.created_by === currentUserId ? '<button class="secondary" id="remove-stop" style="width:100%;margin-top:10px">Remove my house</button>' : ''}`;
+  const organizerEditor = isOrganizer ? `<form id="organizer-edit" class="organizer-edit">
+    <div class="organizer-heading"><strong>Organizer controls</strong><span>Changes publish immediately</span></div>
+    <label>Display name<input name="title" maxlength="80" value="${escapeHtml(stop.title)}" required></label>
+    <fieldset><legend>What’s here?</legend><div class="category-options">
+      ${Object.entries(categories).map(([key, item]) => `<label><input name="categories" type="checkbox" value="${key}" ${stop.categories.includes(key) ? 'checked' : ''}><span>${item.icon} ${item.label}</span></label>`).join('')}
+    </div></fieldset>
+    <label>Good to know<textarea name="notes" maxlength="400" rows="2">${escapeHtml(stop.notes || '')}</textarea></label>
+    <p class="error organizer-edit-error" role="alert"></p>
+    <div class="organizer-actions"><button class="primary" type="submit">Save changes</button><button class="danger" id="organizer-remove" type="button">Remove from map</button></div>
+  </form>` : '';
+  $('#detail').innerHTML = `<button class="icon-button close-detail" aria-label="Close details">×</button><div class="eyebrow">${isOrganizer ? 'ORGANIZER MODE · ' : ''}${demo ? 'SAMPLE STOP · ' : ''}HALLOWEEN NIGHT</div><h2>${escapeHtml(stop.title)}</h2><div class="detail-tags">${stop.categories.map((key) => `<span class="tag">${categories[key].icon} ${categories[key].label}</span>`).join('')}</div><p>⌖ ${escapeHtml(stop.address)}</p>${stop.notes ? `<p>${escapeHtml(stop.notes)}</p>` : ''}${organizerEditor}<div class="detail-actions"><a class="secondary" href="https://www.google.com/maps/dir/?api=1&destination=${stop.lat},${stop.lng}&travelmode=walking" target="_blank" rel="noopener noreferrer">↗ Directions</a><button class="primary" id="share-stop">Share stop</button></div>${!isOrganizer && db && stop.created_by === currentUserId ? '<button class="secondary" id="remove-stop" style="width:100%;margin-top:10px">Remove my house</button>' : ''}`;
   $('#detail').hidden = false;
   $('.close-detail').onclick = () => { closeDetail(); render(); };
   $('#share-stop').onclick = () => share(id);
+  if ($('#organizer-edit')) $('#organizer-edit').onsubmit = async (event) => {
+    event.preventDefault();
+    const editForm = new FormData(event.target);
+    const selectedCategories = [...new Set(editForm.getAll('categories'))];
+    if (selectedCategories.includes('adult') && !selectedCategories.includes('candy')) selectedCategories.push('candy');
+    const errorElement = $('.organizer-edit-error');
+    if (!selectedCategories.length) { errorElement.textContent = 'Choose at least one offering, or remove the home from the map.'; return; }
+    const saveButton = event.target.querySelector('[type="submit"]');
+    saveButton.disabled = true;
+    const updates = { title: editForm.get('title').trim(), notes: editForm.get('notes').trim(), categories: selectedCategories };
+    const { data, error } = await adminDb.from('stops').update(updates).eq('id', id).select().single();
+    if (error) { errorElement.textContent = 'Could not save the changes. Please sign in again and retry.'; saveButton.disabled = false; return; }
+    stops = stops.map((item) => item.id === id ? data : item);
+    houseCache.delete(id);
+    render();
+    showDetail(id, false);
+    toast('Home updated on the public map.');
+  };
+  if ($('#organizer-remove')) $('#organizer-remove').onclick = async () => {
+    if (!confirm(`Remove ${stop.address} from the Halloween map?`)) return;
+    $('#organizer-remove').disabled = true;
+    const { error } = await adminDb.from('stops').delete().eq('id', id);
+    if (error) { toast('Could not remove the home. Please sign in again and retry.'); $('#organizer-remove').disabled = false; return; }
+    stops = stops.filter((item) => item.id !== id);
+    houseCache.delete(id);
+    closeDetail();
+    render();
+    toast('Home removed from the public map.');
+  };
   if ($('#remove-stop')) $('#remove-stop').onclick = async () => {
     if (!confirm('Remove your house from the neighborhood map?')) return;
     $('#remove-stop').disabled = true;
@@ -846,8 +899,43 @@ async function fillAddressFromPin(lat, lng) {
 }
 
 const dialog = $('#add-dialog');
+const organizerDialog = $('#organizer-dialog');
 const formAddressInput = document.querySelector('[name="address"]');
 const formAddressOptions = $('#address-options');
+
+$('#organizer-login').onclick = () => {
+  $('#organizer-error').textContent = '';
+  $('#organizer-form').reset();
+  organizerDialog.showModal();
+  setTimeout(() => organizerDialog.querySelector('[name="password"]').focus(), 0);
+};
+$('.close-organizer').onclick = () => organizerDialog.close();
+$('#organizer-form').onsubmit = async (event) => {
+  event.preventDefault();
+  const password = new FormData(event.target).get('password');
+  const errorElement = $('#organizer-error');
+  const submitButton = $('#organizer-submit');
+  errorElement.textContent = '';
+  submitButton.disabled = true;
+  try {
+    if (!adminDb) throw new Error('Organizer login is not ready');
+    const { data, error } = await adminDb.auth.signInWithPassword({ email: config.organizerEmail, password });
+    if (error || !isOrganizerSession(data.session)) throw error || new Error('Not an organizer');
+    setOrganizerMode(true);
+    organizerDialog.close();
+    toast('Organizer mode enabled. Select a listed home to edit it.');
+  } catch {
+    await adminDb?.auth.signOut();
+    errorElement.textContent = 'That organizer password was not accepted.';
+  } finally {
+    submitButton.disabled = false;
+  }
+};
+$('#organizer-logout').onclick = async () => {
+  await adminDb?.auth.signOut();
+  setOrganizerMode(false);
+  toast('Organizer mode ended.');
+};
 
 function chooseFormAddress(address) {
   const text = `${address.number} ${address.street}`;
@@ -1044,6 +1132,21 @@ async function initialize() {
   if (!config.supabaseUrl || !config.supabaseKey) { status('Map setup in progress · Open the demo preview to explore the design.'); render(); return; }
   try {
     db = window.supabase.createClient(config.supabaseUrl, config.supabaseKey);
+    adminDb = window.supabase.createClient(config.supabaseUrl, config.supabaseKey, {
+      auth: {
+        storage: window.sessionStorage,
+        storageKey: 'arrowbrooke-organizer-session',
+        persistSession: true,
+        autoRefreshToken: true,
+        detectSessionInUrl: false
+      }
+    });
+    const { data: organizerSessionData } = await adminDb.auth.getSession();
+    setOrganizerMode(isOrganizerSession(organizerSessionData.session));
+    adminDb.auth.onAuthStateChange((event, session) => {
+      if (event === 'SIGNED_OUT') setOrganizerMode(false);
+      else if (isOrganizerSession(session)) setOrganizerMode(true);
+    });
     db.auth.onAuthStateChange((event, session) => { if (session?.access_token) setTimeout(() => db.realtime.setAuth(session.access_token), 0); });
     await ensureVisitorSession();
     await loadStops();

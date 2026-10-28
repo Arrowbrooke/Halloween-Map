@@ -28,6 +28,12 @@ Verified homes appear immediately after submission. The database enforces one li
 
 Residents cannot replace an existing listing for the same home. Adult-treat submissions automatically include kids' candy; map color priority is purple for adult treats, orange for candy, and green for decorations only.
 
+## Organizer mode
+
+The public map includes a password-only **Organizer login**. It signs in through a dedicated Supabase Auth account; the password is never stored in this repository. The organizer session uses browser session storage and ends when the browser tab or window is closed.
+
+After signing in, select a participating home on the map to change its display name, notes, or offerings, or remove it from the public map. Run `supabase-organizer-setup.sql` once after creating and confirming the dedicated organizer account described in `config.js`.
+
 ## One-time setup
 
 1. Create a new Supabase project for this site. Do not reuse the personal map's project.

@@ -3,6 +3,8 @@ window.HALLOWEEN_CONFIG = {
   // Never use a service_role or secret key here.
   supabaseUrl: 'https://kbiyuhxugkuofftmrkdc.supabase.co',
   supabaseKey: 'sb_publishable_Z-gH4ovBmap5sbCSyJ04hg_TxVBC4r9',
+  // A dedicated, non-personal Supabase Auth account powers the password-only organizer login.
+  organizerEmail: 'organizer@arrowbrooke-map.invalid',
   reverseGeocodeUrl: 'https://photon.komoot.io/reverse',
   addressSearchUrl: 'https://photon.komoot.io/api/',
   center: [33.2475, -96.9025],

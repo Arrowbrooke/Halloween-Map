@@ -68,7 +68,15 @@
 @media(max-width:700px){.filters{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:5px;width:100%;margin:0;padding:10px 0 6px;overflow:visible}.chip{justify-content:center;gap:4px;padding:8px 4px;font-size:11px;line-height:1.15;white-space:normal;min-width:0;min-height:44px;text-align:center}.chip:last-child{margin-right:0}.chip .dot{width:6px;height:6px}}
 @media(max-width:350px){.chip{font-size:10px;gap:3px;padding:8px 2px}}
 
-/* Public neighborhood edition: submissions wait for organizer approval. */
+/* Public neighborhood edition and private organizer controls. */
 .public-list-heading{margin-top:26px}
 .approval-note{margin:14px 0 18px;padding:12px 14px;border-radius:14px;background:#362541;border:1px solid #664775;color:#dcc9e5;font-size:12px;line-height:1.55}
 .approval-note strong{color:#ffd3a0}
+.organizer-link{display:block;margin:14px auto 4px;padding:8px 12px;background:transparent;color:#a595b3;font-size:10px;text-decoration:underline;text-underline-offset:3px}
+.organizer-link:hover{color:#ffd3a0}.organizer-tools{margin:16px 0 6px;padding:12px 14px;border:1px solid #75548a;border-radius:14px;background:#422c4e;color:#eadcf2;font-size:11px;line-height:1.5}
+.organizer-tools strong,.organizer-tools span{display:block}.organizer-tools strong{color:#ffd3a0;font-size:12px}.organizer-tools .secondary{width:100%;margin-top:9px;min-height:36px;padding:7px 12px}
+#organizer-submit{width:100%}.organizer-mode .connection{box-shadow:inset 0 0 0 1px #a275df}
+.organizer-edit{margin:17px 0;padding:14px;border:1px solid #68477a;border-radius:15px;background:#20172d}
+.organizer-heading{display:flex;justify-content:space-between;gap:8px;align-items:center;margin-bottom:10px}.organizer-heading strong{color:#ffd3a0;font-size:12px}.organizer-heading span{color:#b7a7c4;font-size:9px}
+.organizer-edit>label{margin:12px 0}.organizer-edit fieldset{margin:14px 0}.organizer-edit .category-options span{padding:9px 7px}.organizer-actions{display:grid;grid-template-columns:1fr 1fr;gap:8px}.danger{border:1px solid #a85858;border-radius:24px;background:#47252f;color:#ffc7c2;padding:11px 12px;font-weight:600}.danger:hover{background:#5a2d39}
+@media(max-width:700px){.organizer-edit{padding:12px}.organizer-actions{grid-template-columns:1fr}.organizer-tools{margin-bottom:12px}}

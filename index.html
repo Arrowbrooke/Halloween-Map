@@ -9,7 +9,7 @@
   <link rel="icon" href="icon.svg">
   <link rel="stylesheet" href="vendor/leaflet.css">
   <link rel="stylesheet" href="vendor/maplibre-gl.css">
-  <link rel="stylesheet" href="style.css?v=20261028-addresses">
+  <link rel="stylesheet" href="style.css?v=20261028-organizer">
 </head>
 <body>
   <main>
@@ -45,6 +45,12 @@
       </div>
       <div id="stop-list"></div>
       <p class="local-note">Tap a home for details and walking directions.</p>
+      <div id="organizer-tools" class="organizer-tools" hidden>
+        <strong>Organizer mode</strong>
+        <span>Select a listed home on the map to edit it.</span>
+        <button id="organizer-logout" class="secondary" type="button">Sign out</button>
+      </div>
+      <button id="organizer-login" class="organizer-link" type="button">Organizer login</button>
     </aside>
 
     <div class="map-controls">
@@ -102,12 +108,28 @@
     </form>
   </dialog>
 
+  <dialog id="organizer-dialog">
+    <form id="organizer-form">
+      <div class="dialog-top">
+        <div><div class="eyebrow">PRIVATE MAP CONTROLS</div><h2>Organizer login 🎃</h2></div>
+        <button type="button" class="icon-button close-organizer" aria-label="Close">×</button>
+      </div>
+      <p class="muted">Enter the organizer password to edit participating homes directly from the map.</p>
+      <label>Password
+        <input name="password" type="password" minlength="12" autocomplete="current-password" required>
+      </label>
+      <p id="organizer-error" class="error" role="alert"></p>
+      <button id="organizer-submit" class="primary" type="submit">Enter organizer mode</button>
+      <p class="fine-print">The password is checked securely by Supabase and is never stored in this website.</p>
+    </form>
+  </dialog>
+
   <div id="toast" role="status" hidden></div>
   <script src="vendor/leaflet.js"></script>
   <script src="vendor/maplibre-gl.js"></script>
   <script src="vendor/leaflet-maplibre-gl.js"></script>
   <script src="vendor/supabase.js"></script>
-  <script src="config.js?v=20261028-supabase"></script>
-  <script src="app.js?v=20261028-live-submissions" type="module"></script>
+  <script src="config.js?v=20261028-organizer"></script>
+  <script src="app.js?v=20261028-organizer" type="module"></script>
 </body>
 </html>
