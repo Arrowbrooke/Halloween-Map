@@ -180,7 +180,7 @@ function normalizeAddressText(value) {
 
 async function loadNeighborhoodAddresses() {
   try {
-    const response = await fetch('arrowbrooke-addresses.geojson?v=20261028-address-cleanup', { credentials: 'same-origin' });
+    const response = await fetch('arrowbrooke-addresses.geojson?v=20261028-add-2713-upland', { credentials: 'same-origin' });
     if (!response.ok) throw new Error('Address file unavailable');
     neighborhoodAddressData = await response.json();
     for (const feature of neighborhoodAddressData.features || []) {
