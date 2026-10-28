@@ -235,16 +235,53 @@ function ensureMapEnhancements() {
     type: 'geojson',
     data: { type: 'FeatureCollection', features: [] }
   });
+  const pumpkinCanvas = document.createElement('canvas');
+  pumpkinCanvas.width = 48;
+  pumpkinCanvas.height = 48;
+  const pumpkin = pumpkinCanvas.getContext('2d');
+  pumpkin.lineCap = 'round';
+  pumpkin.strokeStyle = '#4f8a45';
+  pumpkin.lineWidth = 4;
+  pumpkin.beginPath();
+  pumpkin.moveTo(25, 12);
+  pumpkin.quadraticCurveTo(24, 5, 31, 5);
+  pumpkin.stroke();
+  pumpkin.fillStyle = '#f08a32';
+  pumpkin.beginPath();
+  pumpkin.ellipse(24, 28, 19, 15, 0, 0, Math.PI * 2);
+  pumpkin.fill();
+  pumpkin.fillStyle = '#ffad43';
+  pumpkin.beginPath();
+  pumpkin.ellipse(24, 28, 10, 15, 0, 0, Math.PI * 2);
+  pumpkin.fill();
+  pumpkin.fillStyle = '#3a2631';
+  pumpkin.beginPath();
+  pumpkin.moveTo(12, 25); pumpkin.lineTo(18, 20); pumpkin.lineTo(20, 27); pumpkin.closePath();
+  pumpkin.moveTo(28, 27); pumpkin.lineTo(30, 20); pumpkin.lineTo(36, 25); pumpkin.closePath();
+  pumpkin.fill();
+  pumpkin.strokeStyle = '#3a2631';
+  pumpkin.lineWidth = 3;
+  pumpkin.beginPath();
+  pumpkin.arc(24, 28, 12, 0.35, Math.PI - 0.35);
+  pumpkin.stroke();
+  streetMap.addImage('arrowbrooke-gp-pumpkin', pumpkin.getImageData(0, 0, 48, 48), { pixelRatio: 2 });
   streetMap.addLayer({
     id: 'arrowbrooke-gp-labels',
     type: 'symbol',
     source: 'arrowbrooke-gp-labels',
     minzoom: 14.5,
     layout: {
+      'icon-image': 'arrowbrooke-gp-pumpkin',
+      'icon-size': ['interpolate', ['linear'], ['zoom'], 14.5, 0.8, 17, 1.1],
+      'icon-allow-overlap': true,
+      'icon-ignore-placement': true,
       'text-field': ['get', 'label'],
       'text-font': ['Noto Sans Bold'],
       'text-size': ['interpolate', ['linear'], ['zoom'], 14.5, 11, 17, 15],
-      'text-allow-overlap': true
+      'text-offset': [1.5, 0],
+      'text-anchor': 'left',
+      'text-allow-overlap': true,
+      'text-ignore-placement': true
     },
     paint: {
       'text-color': '#dff4c7',
@@ -328,6 +365,9 @@ function ensureMapEnhancements() {
       fogAnimationFrame = requestAnimationFrame(animateFog);
     }
   }
+
+  updateGreenbeltLabels();
+  if (streetMap.getLayer('arrowbrooke-gp-labels')) streetMap.moveLayer('arrowbrooke-gp-labels');
 }
 
 const markers = L.layerGroup().addTo(map);
@@ -433,8 +473,11 @@ function scheduleHomes() {
 if (streetMap) {
   streetMap.on('idle', () => {
     scheduleHomes();
-    snapVisibleAddressLabels();
-    updateGreenbeltLabels();
+    try { snapVisibleAddressLabels(); } catch { /* labels retry after the next tile update */ }
+    try {
+      updateGreenbeltLabels();
+      if (streetMap.getLayer('arrowbrooke-gp-labels')) streetMap.moveLayer('arrowbrooke-gp-labels');
+    } catch { /* GP labels retry after the next tile update */ }
   });
   streetMap.on('sourcedata', (event) => {
     if (event.sourceId === 'openmaptiles' || event.sourceId === 'arrowbrooke-buildings') scheduleHomes();
