@@ -29,6 +29,7 @@ let filter = new Set();
 let db = null;
 let currentUserId = null;
 let chosenLocation = null;
+let chosenAddressKey = '';
 let userMarker = null;
 let searchMarker = null;
 let searchTimer = null;
@@ -553,7 +554,7 @@ function localSearchResults(query, limit = 8) {
     return neighborhoodAddresses.filter((address) => address.search.includes(normalized))
       .sort((a, b) => Number(!a.search.startsWith(normalized)) - Number(!b.search.startsWith(normalized)) || a.search.localeCompare(b.search))
       .slice(0, limit)
-      .map((address) => ({ title: `${address.number} ${address.street}`, subtitle: 'ArrowBrooke address', lat: address.lat, lng: address.lng, isHouse: true }));
+      .map((address) => ({ title: `${address.number} ${address.street}`, subtitle: 'ArrowBrooke address', lat: address.lat, lng: address.lng, isHouse: true, addressKey: address.search }));
   }
   const streets = new Map();
   for (const address of neighborhoodAddresses) {
@@ -632,6 +633,7 @@ function selectSearchResult(result) {
   map.setView([result.lat, result.lng], result.isHouse ? 19 : 17);
   if (result.isHouse) {
     chosenLocation = [result.lat, result.lng];
+    chosenAddressKey = result.addressKey || normalizeAddressText(result.title);
     const addressInput = document.querySelector('[name="address"]');
     addressInput.value = result.title;
     lastSuggestedAddress = result.title;
@@ -835,6 +837,7 @@ async function fillAddressFromPin(lat, lng) {
     if (!result) { $('#address-help').textContent = 'No address found here. Please type the house number and street.'; return; }
     input.value = result.text;
     lastSuggestedAddress = result.text;
+    chosenAddressKey = localAddress?.search || '';
     $('#address-help').textContent = result.hasNumber ? 'Address found—please confirm this is the correct home before saving.' : 'Street found—please add the house number before saving.';
     if (result.hasNumber) $('#pick-location').textContent = '⌖ Adjust or confirm on map';
   } catch {
@@ -849,6 +852,7 @@ const formAddressOptions = $('#address-options');
 function chooseFormAddress(address) {
   const text = `${address.number} ${address.street}`;
   chosenLocation = [address.lat, address.lng];
+  chosenAddressKey = address.search;
   formAddressInput.value = text;
   lastSuggestedAddress = text;
   formAddressOptions.hidden = true;
@@ -870,6 +874,7 @@ formAddressInput.oninput = async () => {
   const query = normalizeAddressText(formAddressInput.value);
   if (formAddressInput.value !== lastSuggestedAddress) {
     chosenLocation = null;
+    chosenAddressKey = '';
     $('#location-label').textContent = 'Choose a matching address below, or pick the home on the map.';
     $('#pick-location').textContent = '⌖ Choose location on map';
   }
@@ -906,6 +911,7 @@ $('#confirm-location').onclick = () => {
   const point = map.getCenter();
   if (!insideFocusBoundary(point.lat, point.lng)) { toast('Please choose a spot inside ArrowBrooke.'); return; }
   chosenLocation = [point.lat, point.lng];
+  chosenAddressKey = '';
   $('#location-label').textContent = '✓ Location selected. Tap above to adjust it.';
   endPicking();
   fillAddressFromPin(point.lat, point.lng);
@@ -918,15 +924,16 @@ $('#stop-form').onsubmit = async (event) => {
   const form = new FormData(event.target);
   const errorElement = $('#form-error');
   errorElement.textContent = '';
-  const selectedCategories = form.getAll('categories');
+  const selectedCategories = [...new Set(form.getAll('categories'))];
+  if (selectedCategories.includes('adult') && !selectedCategories.includes('candy')) selectedCategories.push('candy');
   if (!selectedCategories.length) { errorElement.textContent = 'Choose at least one kind of treat or decoration.'; return; }
   if (!chosenLocation) { errorElement.textContent = 'Choose your house location on the map first.'; return; }
   const title = form.get('title').trim() || pickStopName(stops.map((stop) => stop.title));
   const address = form.get('address').trim();
   if (!address) { errorElement.textContent = 'Enter the house number and street address.'; return; }
-  if (address === lastSuggestedAddress && $('#address-help').textContent.startsWith('Street found')) { errorElement.textContent = 'Please add the house number to the suggested street address.'; return; }
+  if (!chosenAddressKey || normalizeAddressText(address) !== chosenAddressKey) { errorElement.textContent = 'Choose your exact home from the verified ArrowBrooke address list.'; return; }
   if (!db && !demo) { errorElement.textContent = 'The public map is not connected yet. The organizer needs to finish the one-time setup.'; return; }
-  const stop = { title, address, categories: selectedCategories, notes: form.get('notes').trim(), lat: chosenLocation[0], lng: chosenLocation[1], event_date: config.eventDate };
+  const stop = { title, address, address_key: chosenAddressKey, categories: selectedCategories, notes: form.get('notes').trim(), lat: chosenLocation[0], lng: chosenLocation[1], event_date: config.eventDate };
   $('#save-stop').disabled = true;
   try {
     let id;
@@ -941,6 +948,7 @@ $('#stop-form').onsubmit = async (event) => {
     dialog.close();
     event.target.reset();
     chosenLocation = null;
+    chosenAddressKey = '';
     addressRequest += 1;
     lastSuggestedAddress = '';
     $('#address-help').textContent = 'Choose a spot on the map, or type the address yourself.';
@@ -952,9 +960,11 @@ $('#stop-form').onsubmit = async (event) => {
     syncFilters();
     render();
     if (demo) showDetail(id);
-    toast(demo ? 'Sample house added for this preview session.' : 'Submitted! Your house will appear after the organizer approves it.');
-  } catch {
-    errorElement.textContent = 'Could not save your house. Check your connection and try again.';
+    toast(demo ? 'Sample house added for this preview session.' : 'Your house is now on the ArrowBrooke map!');
+  } catch (error) {
+    errorElement.textContent = error?.code === '23505'
+      ? 'That home is already listed for this event.'
+      : 'Could not save your house. Check your connection and try again.';
   } finally { $('#save-stop').disabled = false; }
 };
 

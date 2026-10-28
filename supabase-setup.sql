@@ -6,8 +6,9 @@ create table if not exists public.stops (
   event_date date not null,
   title text not null check (char_length(trim(title)) between 1 and 80),
   address text not null check (char_length(trim(address)) between 1 and 140),
+  address_key text not null check (char_length(trim(address_key)) between 3 and 140),
   notes text not null default '' check (char_length(notes) <= 400),
-  approval_status text not null default 'pending' check (approval_status in ('pending','approved','rejected')),
+  approval_status text not null default 'approved' check (approval_status in ('approved','rejected')),
   categories text[] not null check (
     cardinality(categories) between 1 and 3 and
     categories <@ array['candy','adult','decor']::text[] and
@@ -19,12 +20,14 @@ create table if not exists public.stops (
   ends time not null default '23:59:59'::time,
   check (ends > starts)
 );
-alter table public.stops add column if not exists approval_status text not null default 'pending';
+alter table public.stops add column if not exists address_key text;
+alter table public.stops alter column approval_status set default 'approved';
 create index if not exists stops_event_date_idx on public.stops(event_date);
+create unique index if not exists one_listing_per_home_per_event on public.stops(event_date, address_key);
 alter table public.stops enable row level security;
 revoke all on public.stops from anon, authenticated;
 grant select on public.stops to anon, authenticated;
-grant insert (event_date, title, address, notes, categories, lat, lng, starts, ends) on public.stops to authenticated;
+grant insert (event_date, title, address, address_key, notes, categories, lat, lng, starts, ends) on public.stops to authenticated;
 grant delete on public.stops to authenticated;
 drop policy if exists "Anyone can read Halloween stops" on public.stops;
 drop policy if exists "Approved homes are public and owners can review submissions" on public.stops;

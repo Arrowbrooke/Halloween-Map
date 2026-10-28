@@ -8,7 +8,7 @@ The map's searchable house numbers come from the OpenAddresses Denton County exp
 
 The preparation script excludes address points outside the full four-sided clear/fog boundary and the small set of known non-home roadway/common-area records listed in `scripts/snap-addresses-to-buildings.mjs`.
 
-Residents can find a home by typing its address or by placing a pin. Both paths show the matched address and let the resident confirm the location on the map before submitting it for organizer approval.
+Residents can find a home by typing its address or by placing a pin. Both paths resolve to a verified address in the neighborhood list and let the resident confirm the location before submitting it. Only one listing per verified address is allowed for each event.
 
 ## Neighborhood buildings
 
@@ -18,16 +18,15 @@ Some newly developed southwest streets have public address points but no footpri
 
 Run `node scripts/snap-addresses-to-buildings.mjs --buildings path/to/overture-buildings.geojson --write` after replacing either source dataset to audit and refresh the stored address-label positions.
 
-## Approval workflow
+## Submission workflow
 
-Every new house is saved with `approval_status = pending` and stays off the public map. The organizer reviews submissions in the Supabase Table Editor:
+Verified homes appear immediately after submission. The database enforces one listing per address and event, and the organizer can review or remove entries in the Supabase Table Editor:
 
 1. Open **Table Editor → stops**.
-2. Filter `approval_status` to `pending`.
-3. Check the address, map coordinates, categories, and notes.
-4. Change the status to `approved` to publish it, or `rejected` to keep it hidden.
+2. Check the address, map coordinates, categories, and notes.
+3. Delete an invalid entry or change `approval_status` to `rejected` to hide it.
 
-Only approved homes are requested by the public site. Residents cannot approve their own submissions.
+Residents cannot replace an existing listing for the same home. Adult-treat submissions automatically include kids' candy; map color priority is purple for adult treats, orange for candy, and green for decorations only.
 
 ## One-time setup
 

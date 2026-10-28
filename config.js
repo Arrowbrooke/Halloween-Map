@@ -1,8 +1,8 @@
 window.HALLOWEEN_CONFIG = {
   // Add the public URL and publishable key from this site's own Supabase project.
   // Never use a service_role or secret key here.
-  supabaseUrl: '',
-  supabaseKey: '',
+  supabaseUrl: 'https://kbiyuhxugkuofftmrkdc.supabase.co',
+  supabaseKey: 'sb_publishable_Z-gH4ovBmap5sbCSyJ04hg_TxVBC4r9',
   reverseGeocodeUrl: 'https://photon.komoot.io/reverse',
   addressSearchUrl: 'https://photon.komoot.io/api/',
   center: [33.2475, -96.9025],
