@@ -8,6 +8,10 @@ The map's searchable house numbers come from the OpenAddresses Denton County exp
 
 Residents can find a home by typing its address or by placing a pin. Both paths show the matched address and let the resident confirm the location on the map before submitting it for organizer approval.
 
+## Neighborhood buildings
+
+`arrowbrooke-buildings.geojson` supplements the base map with building footprints from the Overture Maps 2026-10-21 release. It is clipped to the ArrowBrooke focus area and contains geometry only. The supplemental layer fills gaps in the base map, including newer southwest homes, and uses the same styling and home-highlighting behavior as the existing buildings. Overture Maps building data is licensed under ODbL.
+
 ## Approval workflow
 
 Every new house is saved with `approval_status = pending` and stays off the public map. The organizer reviews submissions in the Supabase Table Editor:

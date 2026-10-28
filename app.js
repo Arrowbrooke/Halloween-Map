@@ -89,6 +89,7 @@ function status(message, live = false) {
 
 const map = L.map('map', { zoomControl: false }).setView(config.center, config.zoom);
 map.attributionControl.addAttribution('Addresses: <a href="https://openaddresses.io/">OpenAddresses</a> / Denton County');
+map.attributionControl.addAttribution('Buildings: <a href="https://overturemaps.org/">Overture Maps</a> (ODbL)');
 let tileWarning = false;
 let streetMap = null;
 const mapWarning = () => {
@@ -179,6 +180,22 @@ function organicFogBoundary() {
 
 function ensureMapEnhancements() {
   if (!streetMap || !streetMap.isStyleLoaded() || streetMap.getLayer('arrowbrooke-address-labels')) return;
+  streetMap.addSource('arrowbrooke-buildings', {
+    type: 'geojson',
+    data: 'arrowbrooke-buildings.geojson?v=20261028'
+  });
+  streetMap.addLayer({
+    id: 'arrowbrooke-building-supplement',
+    type: 'fill',
+    source: 'arrowbrooke-buildings',
+    minzoom: 13,
+    paint: {
+      'fill-color': '#85899e',
+      'fill-opacity': 0.24,
+      'fill-antialias': false
+    }
+  }, streetMap.getLayer('building-3d') ? 'building-3d' : undefined);
+
   streetMap.addSource('arrowbrooke-addresses', { type: 'geojson', data: neighborhoodAddressData });
   streetMap.addLayer({
     id: 'arrowbrooke-address-labels',
@@ -202,8 +219,6 @@ function ensureMapEnhancements() {
   });
 
   if (Array.isArray(config.focusBoundary) && config.focusBoundary.length > 2) {
-    const boundary = fogStructuralBoundary().map(([lat, lng]) => [lng, lat]);
-    boundary.push(boundary[0]);
     const organicEdge = organicFogBoundary().map(([lat, lng]) => [lng, lat]);
     organicEdge.push(organicEdge[0]);
     streetMap.addSource('arrowbrooke-focus', {
@@ -215,7 +230,7 @@ function ensureMapEnhancements() {
           type: 'Polygon',
           coordinates: [
             [[-180, -85], [180, -85], [180, 85], [-180, 85], [-180, -85]],
-            boundary
+            organicEdge
           ]
         }
       }
@@ -335,7 +350,9 @@ function scheduleHomes() {
 }
 if (streetMap) {
   streetMap.on('idle', scheduleHomes);
-  streetMap.on('sourcedata', (event) => { if (event.sourceId === 'openmaptiles') scheduleHomes(); });
+  streetMap.on('sourcedata', (event) => {
+    if (event.sourceId === 'openmaptiles' || event.sourceId === 'arrowbrooke-buildings') scheduleHomes();
+  });
 }
 map.on('moveend', scheduleHomes);
 
@@ -525,7 +542,18 @@ function drawMapStops() {
   const used = new Set();
   let buildings = [];
   if (streetMap && map.getZoom() >= 16) {
-    try { buildings = streetMap.querySourceFeatures('openmaptiles', { sourceLayer: 'building' }); } catch { /* map still works with pins */ }
+    try {
+      const candidates = [
+        ...streetMap.querySourceFeatures('openmaptiles', { sourceLayer: 'building' }),
+        ...streetMap.querySourceFeatures('arrowbrooke-buildings')
+      ];
+      const uniqueBuildings = new Map();
+      for (const feature of candidates) {
+        const geometry = feature?.geometry;
+        if (geometry) uniqueBuildings.set(homeKey(geometry), feature);
+      }
+      buildings = [...uniqueBuildings.values()];
+    } catch { /* map still works with pins */ }
   }
 
   for (const stop of visible) {
