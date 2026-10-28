@@ -4,13 +4,15 @@ A separate, mobile-friendly neighborhood Halloween map. Residents can search and
 
 ## Neighborhood addresses
 
-The map's searchable house numbers come from the OpenAddresses Denton County export, whose source is Denton County GIS. `arrowbrooke-addresses.geojson` is clipped to the map boundary and contains only house number, street, and coordinates. It does not include resident names, ownership, values, contact details, or the rest of the county dataset.
+The map's searchable house numbers come from the OpenAddresses Denton County export, whose source is Denton County GIS. `arrowbrooke-addresses.geojson` is clipped to the map boundary and contains only house number, street, and coordinates. It does not include resident names, ownership, values, contact details, or the rest of the county dataset. Address-label coordinates are snapped to matched Overture building centers; any remaining visible labels are matched to loaded base-map buildings in the browser.
 
 Residents can find a home by typing its address or by placing a pin. Both paths show the matched address and let the resident confirm the location on the map before submitting it for organizer approval.
 
 ## Neighborhood buildings
 
 `arrowbrooke-buildings.geojson` supplements the base map with building footprints from the Overture Maps 2026-10-21 release. It is clipped to the ArrowBrooke focus area and contains geometry only. The supplemental layer fills gaps in the base map, including newer southwest homes, and uses the same styling and home-highlighting behavior as the existing buildings. Overture Maps building data is licensed under ODbL.
+
+Run `node scripts/snap-addresses-to-buildings.mjs --buildings path/to/overture-buildings.geojson --write` after replacing either source dataset to audit and refresh the stored address-label positions.
 
 ## Approval workflow
 

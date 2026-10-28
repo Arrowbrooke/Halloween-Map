@@ -58,7 +58,7 @@ function normalizeAddressText(value) {
 
 async function loadNeighborhoodAddresses() {
   try {
-    const response = await fetch('arrowbrooke-addresses.geojson?v=20261028', { credentials: 'same-origin' });
+    const response = await fetch('arrowbrooke-addresses.geojson?v=20261028-snapped', { credentials: 'same-origin' });
     if (!response.ok) throw new Error('Address file unavailable');
     neighborhoodAddressData = await response.json();
     neighborhoodAddresses = (neighborhoodAddressData.features || []).map((feature) => {
@@ -218,6 +218,36 @@ function ensureMapEnhancements() {
     }
   });
 
+  for (const layer of streetMap.getStyle().layers || []) {
+    if (layer.type !== 'symbol' || layer['source-layer'] !== 'poi') continue;
+    const nameFilter = ['all',
+      ['!=', ['coalesce', ['get', 'name'], ''], 'Community Center'],
+      ['!=', ['coalesce', ['get', 'name:en'], ''], 'Community Center']
+    ];
+    try { streetMap.setFilter(layer.id, layer.filter ? ['all', layer.filter, nameFilter] : nameFilter); } catch { /* custom labels still work */ }
+  }
+  streetMap.addSource('arrowbrooke-gp-labels', {
+    type: 'geojson',
+    data: { type: 'FeatureCollection', features: [] }
+  });
+  streetMap.addLayer({
+    id: 'arrowbrooke-gp-labels',
+    type: 'symbol',
+    source: 'arrowbrooke-gp-labels',
+    minzoom: 14.5,
+    layout: {
+      'text-field': ['get', 'label'],
+      'text-font': ['Noto Sans Bold'],
+      'text-size': ['interpolate', ['linear'], ['zoom'], 14.5, 11, 17, 15],
+      'text-allow-overlap': true
+    },
+    paint: {
+      'text-color': '#dff4c7',
+      'text-halo-color': '#253528',
+      'text-halo-width': 2
+    }
+  });
+
   if (Array.isArray(config.focusBoundary) && config.focusBoundary.length > 2) {
     const organicEdge = organicFogBoundary().map(([lat, lng]) => [lng, lat]);
     organicEdge.push(organicEdge[0]);
@@ -301,13 +331,79 @@ const houseCache = new Map();
 const homeRenderer = L.svg({ padding: 0.5 });
 let shapeRefreshTimer;
 let pinSequence = 0;
+let gp1Coordinates = null;
+let gpLabelsRenderedKey = '';
+
+function mapBuildingFeatures() {
+  if (!streetMap) return [];
+  try {
+    const candidates = [
+      ...streetMap.querySourceFeatures('openmaptiles', { sourceLayer: 'building' }),
+      ...streetMap.querySourceFeatures('arrowbrooke-buildings')
+    ];
+    const uniqueBuildings = new Map();
+    for (const feature of candidates) {
+      const geometry = feature?.geometry;
+      if (geometry) uniqueBuildings.set(homeKey(geometry), feature);
+    }
+    return [...uniqueBuildings.values()];
+  } catch { return []; }
+}
+
+function snapVisibleAddressLabels() {
+  if (!streetMap || !addressDataLoaded || map.getZoom() < 16 || !neighborhoodAddressData.features?.length) return;
+  const buildings = mapBuildingFeatures();
+  if (!buildings.length) return;
+  const bounds = map.getBounds().pad(0.2);
+  const used = new Set();
+  let changed = false;
+  neighborhoodAddressData.features.forEach((feature, index) => {
+    if (feature.properties?.building_match_m != null || feature.properties?.runtime_building_match) return;
+    const [lng, lat] = feature.geometry.coordinates;
+    if (!bounds.contains([lat, lng])) return;
+    const home = findHome(buildings, lng, lat, 34, used);
+    if (!home) return;
+    used.add(homeKey(home));
+    const [homeLat, homeLng] = homeCenter(home);
+    feature.geometry.coordinates = [homeLng, homeLat];
+    feature.properties.runtime_building_match = true;
+    if (neighborhoodAddresses[index]) Object.assign(neighborhoodAddresses[index], { lat: homeLat, lng: homeLng });
+    changed = true;
+  });
+  if (changed) streetMap.getSource('arrowbrooke-addresses')?.setData(neighborhoodAddressData);
+}
+
+function updateGreenbeltLabels() {
+  if (!streetMap?.getSource('arrowbrooke-gp-labels')) return;
+  if (!gp1Coordinates) {
+    try {
+      const communityCenter = streetMap.querySourceFeatures('openmaptiles', { sourceLayer: 'poi' }).find((feature) =>
+        [feature.properties?.name, feature.properties?.['name:en']].some((name) => String(name || '').toLowerCase() === 'community center')
+      );
+      if (communityCenter?.geometry?.type === 'Point') gp1Coordinates = communityCenter.geometry.coordinates;
+    } catch { /* source may still be loading */ }
+  }
+  const gp2Location = config.gp2Location || [33.24955, -96.90445];
+  const features = [
+    ...(gp1Coordinates ? [{ type: 'Feature', properties: { label: 'GP1' }, geometry: { type: 'Point', coordinates: gp1Coordinates } }] : []),
+    { type: 'Feature', properties: { label: 'GP2' }, geometry: { type: 'Point', coordinates: [gp2Location[1], gp2Location[0]] } }
+  ];
+  const renderedKey = JSON.stringify(features.map((feature) => feature.geometry.coordinates));
+  if (renderedKey === gpLabelsRenderedKey) return;
+  gpLabelsRenderedKey = renderedKey;
+  streetMap.getSource('arrowbrooke-gp-labels').setData({ type: 'FeatureCollection', features });
+}
 
 function scheduleHomes() {
   clearTimeout(shapeRefreshTimer);
   shapeRefreshTimer = setTimeout(drawMapStops, 100);
 }
 if (streetMap) {
-  streetMap.on('idle', scheduleHomes);
+  streetMap.on('idle', () => {
+    scheduleHomes();
+    snapVisibleAddressLabels();
+    updateGreenbeltLabels();
+  });
   streetMap.on('sourcedata', (event) => {
     if (event.sourceId === 'openmaptiles' || event.sourceId === 'arrowbrooke-buildings') scheduleHomes();
   });
@@ -500,18 +596,7 @@ function drawMapStops() {
   const used = new Set();
   let buildings = [];
   if (streetMap && map.getZoom() >= 16) {
-    try {
-      const candidates = [
-        ...streetMap.querySourceFeatures('openmaptiles', { sourceLayer: 'building' }),
-        ...streetMap.querySourceFeatures('arrowbrooke-buildings')
-      ];
-      const uniqueBuildings = new Map();
-      for (const feature of candidates) {
-        const geometry = feature?.geometry;
-        if (geometry) uniqueBuildings.set(homeKey(geometry), feature);
-      }
-      buildings = [...uniqueBuildings.values()];
-    } catch { /* map still works with pins */ }
+    buildings = mapBuildingFeatures();
   }
 
   for (const stop of visible) {
