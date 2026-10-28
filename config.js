@@ -9,10 +9,10 @@ window.HALLOWEEN_CONFIG = {
   zoom: 16,
   // Simplified focus area traced from the organizer's preferred squared boundary.
   focusBoundary: [
-    [33.25230, -96.91021],
-    [33.25230, -96.89329],
-    [33.23945, -96.89329],
-    [33.23945, -96.91021]
+    [33.25195, -96.90995],
+    [33.25195, -96.89415],
+    [33.23910, -96.89415],
+    [33.24025, -96.90995]
   ],
   eventDate: '2026-10-31'
 };
