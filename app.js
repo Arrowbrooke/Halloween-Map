@@ -117,13 +117,13 @@ function ensureMapEnhancements() {
       id: 'outside-neighborhood-fog',
       type: 'fill',
       source: 'arrowbrooke-focus',
-      paint: { 'fill-color': '#09060f', 'fill-opacity': 0.52 }
+      paint: { 'fill-color': '#08050e', 'fill-opacity': 0.7 }
     });
     streetMap.addLayer({
       id: 'arrowbrooke-boundary',
       type: 'line',
       source: 'arrowbrooke-focus',
-      paint: { 'line-color': '#7185ff', 'line-width': 2.2, 'line-opacity': 0.82 }
+      paint: { 'line-color': '#4c8dff', 'line-width': 3.5, 'line-opacity': 1 }
     });
   }
 }
