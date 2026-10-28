@@ -2,6 +2,12 @@
 
 A separate, mobile-friendly neighborhood Halloween map. Residents can search and filter participating homes, get walking directions, share the map, and submit their own house. There are no crews, route trails, or visited/completed controls.
 
+## Neighborhood addresses
+
+The map's searchable house numbers come from the OpenAddresses Denton County export, whose source is Denton County GIS. `arrowbrooke-addresses.geojson` is clipped to the map boundary and contains only house number, street, and coordinates. It does not include resident names, ownership, values, contact details, or the rest of the county dataset.
+
+Residents can find a home by typing its address or by placing a pin. Both paths show the matched address and let the resident confirm the location on the map before submitting it for organizer approval.
+
 ## Approval workflow
 
 Every new house is saved with `approval_status = pending` and stays off the public map. The organizer reviews submissions in the Supabase Table Editor:

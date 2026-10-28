@@ -34,6 +34,46 @@ let searchMarker = null;
 let searchTimer = null;
 let searchRequest = 0;
 let fogAnimationFrame = null;
+let neighborhoodAddressData = { type: 'FeatureCollection', features: [] };
+let neighborhoodAddresses = [];
+let addressDataLoaded = false;
+
+const streetAbbreviations = new Set(['AVE', 'BLVD', 'CT', 'DR', 'FM', 'LN', 'PL', 'PKWY', 'RD', 'ST', 'TRL', 'WAY']);
+
+function displayStreetName(value) {
+  return String(value || '').toLowerCase().split(/\s+/).map((part) => {
+    const upper = part.toUpperCase();
+    return streetAbbreviations.has(upper) ? upper : `${part.charAt(0).toUpperCase()}${part.slice(1)}`;
+  }).join(' ');
+}
+
+function normalizeAddressText(value) {
+  return String(value || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim()
+    .replace(/\bavenue\b/g, 'ave').replace(/\bboulevard\b/g, 'blvd')
+    .replace(/\bcourt\b/g, 'ct').replace(/\bdrive\b/g, 'dr')
+    .replace(/\blane\b/g, 'ln').replace(/\bplace\b/g, 'pl')
+    .replace(/\bparkway\b/g, 'pkwy').replace(/\broad\b/g, 'rd')
+    .replace(/\bstreet\b/g, 'st').replace(/\btrail\b/g, 'trl');
+}
+
+async function loadNeighborhoodAddresses() {
+  try {
+    const response = await fetch('arrowbrooke-addresses.geojson?v=20261028', { credentials: 'same-origin' });
+    if (!response.ok) throw new Error('Address file unavailable');
+    neighborhoodAddressData = await response.json();
+    neighborhoodAddresses = (neighborhoodAddressData.features || []).map((feature) => {
+      const number = String(feature.properties?.number || '').trim();
+      const street = displayStreetName(feature.properties?.street);
+      const [lng, lat] = feature.geometry.coordinates;
+      return { number, street, lat, lng, search: normalizeAddressText(`${number} ${street}`), streetSearch: normalizeAddressText(street) };
+    });
+    addressDataLoaded = true;
+    streetMap?.getSource('arrowbrooke-addresses')?.setData(neighborhoodAddressData);
+  } catch {
+    addressDataLoaded = false;
+  }
+  return neighborhoodAddresses;
+}
 
 function toast(message) {
   $('#toast').textContent = message;
@@ -59,7 +99,7 @@ const mapWarning = () => {
 try {
   const vectorTiles = L.maplibreGL({
     style: new URL('map-style.json', location.href).href,
-    attribution: '<a href="https://openfreemap.org/">OpenFreeMap</a> · © <a href="https://www.openmaptiles.org/">OpenMapTiles</a> · Data from <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+    attribution: '<a href="https://openfreemap.org/">OpenFreeMap</a> · © <a href="https://www.openmaptiles.org/">OpenMapTiles</a> · Data from <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> · Addresses: <a href="https://openaddresses.io/">OpenAddresses</a> / Denton County'
   }).addTo(map);
   streetMap = vectorTiles.getMaplibreMap();
   streetMap.on('error', mapWarning);
@@ -68,23 +108,58 @@ try {
   L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
     maxZoom: 19,
     className: 'fallback-tiles',
-    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors · Addresses: <a href="https://openaddresses.io/">OpenAddresses</a> / Denton County'
   }).addTo(map).on('tileerror', mapWarning);
 }
 
+const addressDataPromise = loadNeighborhoodAddresses();
+
+function organicFogBoundary() {
+  const northernEdge = Array.isArray(config.frontierAlignment) && config.frontierAlignment.length > 1
+    ? config.frontierAlignment.map(([lat, lng]) => [lat + (config.frontierFogOffsetMeters || 0) / 111320, lng])
+    : config.focusBoundary.slice(0, 2);
+  const structuralBoundary = [
+    ...northernEdge,
+    config.focusBoundary[2],
+    config.focusBoundary[3]
+  ];
+  const organic = [];
+  const wander = config.fogEdgeWanderMeters || 4;
+  for (let edge = 0; edge < structuralBoundary.length; edge += 1) {
+    const start = structuralBoundary[edge];
+    const end = structuralBoundary[(edge + 1) % structuralBoundary.length];
+    const meanLat = (start[0] + end[0]) / 2;
+    const northMeters = (end[0] - start[0]) * 111320;
+    const eastMeters = (end[1] - start[1]) * 111320 * Math.cos(meanLat * Math.PI / 180);
+    const length = Math.hypot(northMeters, eastMeters);
+    const pieces = Math.max(2, Math.ceil(length / 22));
+    const normalNorth = -eastMeters / length;
+    const normalEast = northMeters / length;
+    for (let piece = 0; piece < pieces; piece += 1) {
+      const ratio = piece / pieces;
+      const phase = edge * 2.173 + ratio * Math.PI * 2;
+      const offset = (Math.sin(phase * 1.7) * 0.58 + Math.sin(phase * 4.1 + 0.8) * 0.28 + Math.sin(phase * 8.7) * 0.14) * wander;
+      organic.push([
+        start[0] + (end[0] - start[0]) * ratio + normalNorth * offset / 111320,
+        start[1] + (end[1] - start[1]) * ratio + normalEast * offset / (111320 * Math.cos(meanLat * Math.PI / 180))
+      ]);
+    }
+  }
+  return organic;
+}
+
 function ensureMapEnhancements() {
-  if (!streetMap || !streetMap.isStyleLoaded() || streetMap.getLayer('house-number-labels')) return;
-  const firstSymbol = streetMap.getStyle().layers.find((layer) => layer.type === 'symbol')?.id;
+  if (!streetMap || !streetMap.isStyleLoaded() || streetMap.getLayer('arrowbrooke-address-labels')) return;
+  streetMap.addSource('arrowbrooke-addresses', { type: 'geojson', data: neighborhoodAddressData });
   streetMap.addLayer({
-    id: 'house-number-labels',
+    id: 'arrowbrooke-address-labels',
     type: 'symbol',
-    source: 'openmaptiles',
-    'source-layer': 'housenumber',
-    minzoom: 16.75,
+    source: 'arrowbrooke-addresses',
+    minzoom: 16.6,
     layout: {
-      'text-field': ['to-string', ['get', 'housenumber']],
+      'text-field': ['to-string', ['get', 'number']],
       'text-font': ['Noto Sans Bold'],
-      'text-size': ['interpolate', ['linear'], ['zoom'], 17, 10, 19, 14],
+      'text-size': ['interpolate', ['linear'], ['zoom'], 16.6, 7, 17.5, 9, 19, 12],
       'text-allow-overlap': true,
       'text-ignore-placement': true,
       'text-padding': 0
@@ -92,13 +167,13 @@ function ensureMapEnhancements() {
     paint: {
       'text-color': '#fff4d8',
       'text-halo-color': '#181020',
-      'text-halo-width': 1.8,
+      'text-halo-width': 1.4,
       'text-halo-blur': 0.2
     }
-  }, firstSymbol);
+  });
 
   if (Array.isArray(config.focusBoundary) && config.focusBoundary.length > 2) {
-    const boundary = config.focusBoundary.map(([lat, lng]) => [lng, lat]);
+    const boundary = organicFogBoundary().map(([lat, lng]) => [lng, lat]);
     boundary.push(boundary[0]);
     streetMap.addSource('arrowbrooke-focus', {
       type: 'geojson',
@@ -143,7 +218,7 @@ function ensureMapEnhancements() {
       id: 'outside-neighborhood-fog',
       type: 'fill',
       source: 'arrowbrooke-focus',
-      paint: { 'fill-color': '#dce8ed', 'fill-opacity': 0.2 }
+      paint: { 'fill-color': '#e6eef1', 'fill-opacity': 0.13 }
     });
     streetMap.addLayer({
       id: 'outside-neighborhood-fog-clouds',
@@ -151,22 +226,28 @@ function ensureMapEnhancements() {
       source: 'arrowbrooke-focus',
       paint: {
         'fill-pattern': 'arrowbrooke-fog-clouds',
-        'fill-opacity': 0.9,
+        'fill-opacity': 0.74,
         'fill-translate': [0, 0],
         'fill-translate-anchor': 'map'
       }
     });
     streetMap.addLayer({
-      id: 'arrowbrooke-boundary-haze',
+      id: 'arrowbrooke-fog-feather-wide',
       type: 'line',
       source: 'arrowbrooke-focus',
-      paint: { 'line-color': '#eef8fc', 'line-width': 20, 'line-blur': 12, 'line-opacity': 0.2 }
+      paint: { 'line-color': '#f4f9fb', 'line-width': 78, 'line-blur': 34, 'line-opacity': 0.12 }
     });
     streetMap.addLayer({
-      id: 'arrowbrooke-boundary',
+      id: 'arrowbrooke-fog-feather-mid',
       type: 'line',
       source: 'arrowbrooke-focus',
-      paint: { 'line-color': '#d9f2fa', 'line-width': 1.4, 'line-blur': 0.8, 'line-opacity': 0.62 }
+      paint: { 'line-color': '#f7fbfc', 'line-width': 38, 'line-blur': 18, 'line-opacity': 0.16 }
+    });
+    streetMap.addLayer({
+      id: 'arrowbrooke-fog-feather-soft',
+      type: 'line',
+      source: 'arrowbrooke-focus',
+      paint: { 'line-color': '#ffffff', 'line-width': 16, 'line-blur': 9, 'line-opacity': 0.11 }
     });
 
     if (!matchMedia('(prefers-reduced-motion: reduce)').matches) {
@@ -215,6 +296,7 @@ function houseNumber(address) {
 }
 
 function addHouseNumber(stop, position, abovePin = false) {
+  if (addressDataLoaded) return;
   const number = houseNumber(stop.address);
   if (!number || map.getZoom() < 18) return;
   const icon = L.divIcon({
@@ -261,9 +343,49 @@ function showSearchResults(results, message = '') {
   panel._results = results;
 }
 
+function localSearchResults(query, limit = 8) {
+  const normalized = normalizeAddressText(query);
+  if (!normalized) return [];
+  if (/\d/.test(normalized)) {
+    return neighborhoodAddresses.filter((address) => address.search.includes(normalized))
+      .sort((a, b) => Number(!a.search.startsWith(normalized)) - Number(!b.search.startsWith(normalized)) || a.search.localeCompare(b.search))
+      .slice(0, limit)
+      .map((address) => ({ title: `${address.number} ${address.street}`, subtitle: 'ArrowBrooke address', lat: address.lat, lng: address.lng, isHouse: true }));
+  }
+  const streets = new Map();
+  for (const address of neighborhoodAddresses) {
+    if (!address.streetSearch.includes(normalized)) continue;
+    const existing = streets.get(address.streetSearch) || { title: address.street, lat: 0, lng: 0, count: 0, starts: address.streetSearch.startsWith(normalized) };
+    existing.lat += address.lat;
+    existing.lng += address.lng;
+    existing.count += 1;
+    streets.set(address.streetSearch, existing);
+  }
+  return [...streets.values()].sort((a, b) => Number(!a.starts) - Number(!b.starts) || a.title.localeCompare(b.title)).slice(0, limit)
+    .map((street) => ({ title: street.title, subtitle: 'ArrowBrooke street', lat: street.lat / street.count, lng: street.lng / street.count, isHouse: false }));
+}
+
+function nearestNeighborhoodAddress(lat, lng, maximumDistance = 70) {
+  const xScale = 111320 * Math.cos(lat * Math.PI / 180);
+  let nearest = null;
+  let distance = maximumDistance;
+  for (const address of neighborhoodAddresses) {
+    const currentDistance = Math.hypot((address.lng - lng) * xScale, (address.lat - lat) * 111320);
+    if (currentDistance < distance) { nearest = address; distance = currentDistance; }
+  }
+  return nearest ? { ...nearest, distance } : null;
+}
+
 async function searchAddresses(query) {
   const request = ++searchRequest;
   showSearchResults([], 'Searching ArrowBrooke addressesâ€¦');
+  await addressDataPromise;
+  if (request !== searchRequest || $('#search').value.trim() !== query) return;
+  if (addressDataLoaded) {
+    const results = localSearchResults(query);
+    showSearchResults(results, results.length ? '' : 'No matching ArrowBrooke address or street was found.');
+    return;
+  }
   try {
     const url = new URL(config.addressSearchUrl);
     url.searchParams.set('q', query);
@@ -305,6 +427,15 @@ function selectSearchResult(result) {
     zIndexOffset: 1200
   }).addTo(map);
   map.setView([result.lat, result.lng], result.isHouse ? 19 : 17);
+  if (result.isHouse) {
+    chosenLocation = [result.lat, result.lng];
+    const addressInput = document.querySelector('[name="address"]');
+    addressInput.value = result.title;
+    lastSuggestedAddress = result.title;
+    $('#location-label').textContent = '✓ Address selected. Open the map to confirm the exact home.';
+    $('#address-help').textContent = 'This address came from the ArrowBrooke address list. Please confirm it on the map.';
+    $('#pick-location').textContent = '⌖ Show selected address on map';
+  }
   toast(result.isHouse ? 'Address found. Use Add my house to submit this location.' : 'Street found. Zoom in to choose a home.');
 }
 
@@ -492,20 +623,67 @@ async function fillAddressFromPin(lat, lng) {
   if (startingValue.trim() && startingValue !== lastSuggestedAddress) { $('#address-help').textContent = 'Your entered address was kept. Check that it matches the new pin.'; return; }
   $('#address-help').textContent = 'Looking up this spot’s address…';
   try {
-    let result;
-    try { result = await lookupAddress(lat, lng, config.reverseGeocodeUrl); } catch { /* street fallback below */ }
+    await addressDataPromise;
+    const localAddress = nearestNeighborhoodAddress(lat, lng);
+    let result = localAddress ? { text: `${localAddress.number} ${localAddress.street}`, hasNumber: true } : null;
+    if (!result) try { result = await lookupAddress(lat, lng, config.reverseGeocodeUrl); } catch { /* street fallback below */ }
     result = result || streetNearPin(lat, lng);
     if (request !== addressRequest || input.value !== startingValue) return;
     if (!result) { $('#address-help').textContent = 'No address found here. Please type the house number and street.'; return; }
     input.value = result.text;
     lastSuggestedAddress = result.text;
-    $('#address-help').textContent = result.hasNumber ? 'Suggested address—please check the house number before saving.' : 'Street found—please add the house number before saving.';
+    $('#address-help').textContent = result.hasNumber ? 'Address found—please confirm this is the correct home before saving.' : 'Street found—please add the house number before saving.';
+    if (result.hasNumber) $('#pick-location').textContent = '⌖ Adjust or confirm on map';
   } catch {
     if (request === addressRequest) $('#address-help').textContent = 'Address lookup is unavailable. You can still type the address.';
   }
 }
 
 const dialog = $('#add-dialog');
+const formAddressInput = document.querySelector('[name="address"]');
+const formAddressOptions = $('#address-options');
+
+function chooseFormAddress(address) {
+  const text = `${address.number} ${address.street}`;
+  chosenLocation = [address.lat, address.lng];
+  formAddressInput.value = text;
+  lastSuggestedAddress = text;
+  formAddressOptions.hidden = true;
+  $('#location-label').textContent = '✓ Address selected. Open the map to confirm the exact home.';
+  $('#address-help').textContent = 'Please confirm that the marker is on your home before submitting.';
+  $('#pick-location').textContent = '⌖ Show selected address on map';
+  if (searchMarker) searchMarker.remove();
+  searchMarker = L.marker(chosenLocation, {
+    icon: L.divIcon({ className: 'search-location', iconSize: [20, 20], iconAnchor: [10, 10], html: '<span></span>' }),
+    interactive: false,
+    keyboard: false,
+    zIndexOffset: 1200
+  }).addTo(map);
+  map.setView(chosenLocation, 19);
+}
+
+formAddressInput.oninput = async () => {
+  await addressDataPromise;
+  const query = normalizeAddressText(formAddressInput.value);
+  if (formAddressInput.value !== lastSuggestedAddress) {
+    chosenLocation = null;
+    $('#location-label').textContent = 'Choose a matching address below, or pick the home on the map.';
+    $('#pick-location').textContent = '⌖ Choose location on map';
+  }
+  if (query.length < 2 || !addressDataLoaded) { formAddressOptions.hidden = true; return; }
+  const matches = neighborhoodAddresses.filter((address) => address.search.includes(query))
+    .sort((a, b) => Number(!a.search.startsWith(query)) - Number(!b.search.startsWith(query)) || a.search.localeCompare(b.search)).slice(0, 8);
+  formAddressOptions.innerHTML = matches.map((address, index) => `<button type="button" class="form-address-option" role="option" data-address-option="${index}">${escapeHtml(address.number)} ${escapeHtml(address.street)}</button>`).join('');
+  formAddressOptions._matches = matches;
+  formAddressOptions.hidden = !matches.length;
+  $('#address-help').textContent = matches.length ? 'Choose your exact address from the matching homes.' : 'No exact match yet. Keep typing or choose the home on the map.';
+};
+
+formAddressOptions.onclick = (event) => {
+  const option = event.target.closest('[data-address-option]');
+  if (option) chooseFormAddress(formAddressOptions._matches[Number(option.dataset.addressOption)]);
+};
+
 function openAdd() { closeDetail(); $('#form-error').textContent = ''; dialog.showModal(); }
 $('#add').onclick = openAdd;
 $('#add-tab').onclick = openAdd;
@@ -523,7 +701,7 @@ function endPicking() {
 }
 $('#confirm-location').onclick = () => {
   const point = map.getCenter();
-  if (!inNeighborhood(point.lat, point.lng)) { toast('Please choose a spot in ArrowBrooke.'); return; }
+  if (!insideFocusBoundary(point.lat, point.lng)) { toast('Please choose a spot inside ArrowBrooke.'); return; }
   chosenLocation = [point.lat, point.lng];
   $('#location-label').textContent = '✓ Location selected. Tap above to adjust it.';
   endPicking();
@@ -564,6 +742,8 @@ $('#stop-form').onsubmit = async (event) => {
     lastSuggestedAddress = '';
     $('#address-help').textContent = 'Choose a spot on the map, or type the address yourself.';
     $('#location-label').textContent = 'Pick your house first; we’ll suggest its address.';
+    $('#pick-location').textContent = '⌖ Choose location on map';
+    formAddressOptions.hidden = true;
     filter.clear();
     $('#search').value = '';
     syncFilters();
@@ -598,7 +778,7 @@ $('#search').oninput = () => {
   render();
   clearTimeout(searchTimer);
   const query = $('#search').value.trim();
-  if (query.length < 2 || !config.addressSearchUrl) { searchRequest += 1; hideSearchResults(); return; }
+  if (query.length < 2) { searchRequest += 1; hideSearchResults(); return; }
   searchTimer = setTimeout(() => searchAddresses(query), 300);
 };
 $('#search').onkeydown = (event) => {

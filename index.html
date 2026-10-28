@@ -9,7 +9,7 @@
   <link rel="icon" href="icon.svg">
   <link rel="stylesheet" href="vendor/leaflet.css">
   <link rel="stylesheet" href="vendor/maplibre-gl.css">
-  <link rel="stylesheet" href="style.css?v=20261028-search">
+  <link rel="stylesheet" href="style.css?v=20261028-addresses">
 </head>
 <body>
   <main>
@@ -80,10 +80,11 @@
       </label>
       <p id="name-help" class="field-help">Leave this blank and we’ll choose a fun Halloween name.</p>
       <label>Street address
-        <input name="address" maxlength="140" placeholder="Choose a pin to suggest an address" aria-describedby="address-help" required>
+        <input name="address" maxlength="140" placeholder="Start typing your house address" aria-describedby="address-help address-options" autocomplete="street-address" required>
       </label>
+      <div id="address-options" class="form-address-options" role="listbox" aria-label="Matching ArrowBrooke addresses" hidden></div>
       <p id="address-help" class="field-help" role="status">Choose a spot on the map, or type the address yourself.</p>
-      <p class="lookup-credit">Address suggestions: <a href="https://photon.komoot.io/" target="_blank" rel="noopener noreferrer">Photon</a> / <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">OpenStreetMap</a></p>
+      <p class="lookup-credit">Neighborhood addresses: <a href="https://openaddresses.io/" target="_blank" rel="noopener noreferrer">OpenAddresses</a> / Denton County</p>
       <fieldset>
         <legend>What’s here? <span class="muted">Choose all that apply</span></legend>
         <div class="category-options">
@@ -106,7 +107,7 @@
   <script src="vendor/maplibre-gl.js"></script>
   <script src="vendor/leaflet-maplibre-gl.js"></script>
   <script src="vendor/supabase.js"></script>
-  <script src="config.js?v=20261028-roads"></script>
-  <script src="app.js?v=20261028-fixedmist" type="module"></script>
+  <script src="config.js?v=20261028-organic-fog"></script>
+  <script src="app.js?v=20261028-addresses" type="module"></script>
 </body>
 </html>
