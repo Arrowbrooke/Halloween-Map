@@ -1546,7 +1546,7 @@ function moveSheetDrag(event) {
   if (!sheetDrag || event.pointerId !== sheetDrag.pointerId) return;
   const distance = sheetDrag.startY - event.clientY;
   if (Math.abs(distance) > 5) sheetDrag.moved = true;
-  const maximumHeight = innerHeight * (isPhoneLandscapeSheet() ? 0.88 : 0.72);
+  const maximumHeight = isPhoneLandscapeSheet() ? Math.max(56, innerHeight - 92) : innerHeight * 0.72;
   const height = Math.max(isPhoneLandscapeSheet() ? 56 : 64, Math.min(maximumHeight, sheetDrag.startHeight + distance));
   document.documentElement.style.setProperty('--sheet-height', `${height}px`);
 }
@@ -1558,7 +1558,7 @@ function finishSheetDrag(event) {
   const stops = [
     { state: 'minimized', height: landscape ? 56 : 64 },
     { state: 'medium', height: innerHeight * (landscape ? 0.46 : 0.34) },
-    { state: 'expanded', height: innerHeight * (landscape ? 0.86 : 0.67) }
+    { state: 'expanded', height: landscape ? Math.max(56, innerHeight - 92) : innerHeight * 0.67 }
   ];
   const nearest = stops.reduce((best, stop) => Math.abs(stop.height - height) < Math.abs(best.height - height) ? stop : best);
   suppressSheetClick = sheetDrag.moved && sheetDrag.startedOnHandle;
