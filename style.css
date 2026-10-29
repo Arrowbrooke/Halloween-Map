@@ -114,3 +114,13 @@ html{-webkit-text-size-adjust:100%;text-size-adjust:100%}
 .directions-options{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:18px}.directions-options .secondary{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px}.directions-options small{font-size:9px;opacity:.72}
 @media(max-width:420px){.directions-options{grid-template-columns:1fr}}
 :root{--yellow:#e7bd3c}.dot.nonfood{background:var(--yellow)}.dot.allthree{background:var(--green)}.stop-icon.nonfood{background:#4b4323}.stop-icon.allthree{background:#253d38}
+
+/* Leave room for all five filters beside the search field on landscape phones. */
+@media (max-height:500px) and (min-width:701px){
+  .search-panel{left:max(12px,env(safe-area-inset-left));right:max(12px,env(safe-area-inset-right));top:max(10px,env(safe-area-inset-top));width:auto;display:grid;grid-template-columns:minmax(170px,26%) minmax(0,1fr);gap:10px;align-items:center}
+  .search-box{width:100%;min-width:0;height:44px;padding:4px 8px;gap:4px}
+  .search-box input{font-size:14px}.search-box .pumpkin{font-size:20px;padding:0}.search-box .icon-button{width:30px;height:32px;font-size:20px}
+  .filters{position:static;display:grid;grid-template-columns:repeat(5,minmax(0,1fr));width:100%;margin:0;padding:0;gap:5px;overflow:visible}
+  .filters .chip{min-width:0;min-height:44px;justify-content:center;gap:4px;padding:6px 4px;font-size:11px;line-height:1.15;white-space:normal;text-align:center}
+  .filters .chip:last-child{margin-right:0}.filters .dot{width:6px;height:6px}
+}
