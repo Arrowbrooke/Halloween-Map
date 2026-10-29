@@ -595,6 +595,7 @@ function mapBuildingFeatures() {
   if (!streetMap) return [];
   try {
     const candidates = [
+      ...streetMap.queryRenderedFeatures({ layers: ['building', 'arrowbrooke-building-supplement'].filter(id => streetMap.getLayer(id)) }),
       ...streetMap.querySourceFeatures('openmaptiles', { sourceLayer: 'building' }),
       ...streetMap.querySourceFeatures('arrowbrooke-buildings')
     ];
