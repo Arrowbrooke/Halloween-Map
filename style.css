@@ -58,6 +58,8 @@ html{-webkit-text-size-adjust:100%;text-size-adjust:100%}
   .intro{display:none}.connection{font-size:9px;padding:6px 8px}.public-list-heading{margin-top:14px}
   .sheet-expanded .map-controls,.sheet-expanded .add-button{visibility:hidden}
   .leaflet-control-attribution{font-size:6px!important;line-height:1.1!important;max-width:calc(100vw - 28px);padding:1px 3px!important;white-space:normal;text-align:right;-webkit-text-size-adjust:none}
+  .add-button{right:12px;bottom:max(12px,env(safe-area-inset-bottom));left:auto;padding:7px 11px;border-radius:13px;gap:5px;font-size:10px;white-space:nowrap}
+  .add-button span{font-size:16px}
 }
 
 /* Private, continuously updating Halloween location marker. */

@@ -435,6 +435,26 @@ function ensureMapEnhancements() {
     ];
     try { streetMap.setFilter(layer.id, layer.filter ? ['all', layer.filter, nameFilter] : nameFilter); } catch { /* custom labels still work */ }
   }
+  streetMap.addSource('arrowbrooke-hidden-lake-park-icon', {
+    type: 'geojson',
+    data: {
+      type: 'Feature',
+      properties: {},
+      geometry: { type: 'Point', coordinates: [-96.902241, 33.244124] }
+    }
+  });
+  streetMap.addLayer({
+    id: 'arrowbrooke-hidden-lake-park-icon',
+    type: 'circle',
+    source: 'arrowbrooke-hidden-lake-park-icon',
+    minzoom: 13,
+    paint: {
+      'circle-radius': ['interpolate', ['linear'], ['zoom'], 13, 6, 16, 11, 19, 18],
+      'circle-color': '#26364e',
+      'circle-opacity': 1,
+      'circle-blur': 0
+    }
+  });
   streetMap.addSource('arrowbrooke-gp-labels', {
     type: 'geojson',
     data: { type: 'FeatureCollection', features: [] }
