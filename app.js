@@ -1376,12 +1376,18 @@ $('#zoom-out').onclick = () => map.zoomOut();
 $('#share').onclick = () => share();
 const locationDialog = $('#location-dialog');
 
+function locationIconMarkup(icon) {
+  const option = [...document.querySelectorAll('[data-location-icon]')]
+    .find((button) => button.dataset.locationIcon === icon);
+  return option?.querySelector('span')?.innerHTML || '🎃';
+}
+
 function locationMarkerIcon(icon = selectedLocationIcon) {
   return L.divIcon({
     className: 'halloween-location-shell',
     iconSize: [48, 48],
     iconAnchor: [24, 24],
-    html: `<span class="halloween-location-icon" aria-hidden="true">${escapeHtml(icon)}</span>`
+    html: `<span class="halloween-location-icon" aria-hidden="true">${locationIconMarkup(icon)}</span>`
   });
 }
 
@@ -1393,7 +1399,7 @@ function refreshLocationControls() {
   $('#start-location').hidden = active;
   $('#stop-location').hidden = !active;
   $('#locate').classList.toggle('location-live', active);
-  $('#locate').textContent = active ? selectedLocationIcon : '◎';
+  $('#locate').innerHTML = active ? locationIconMarkup(selectedLocationIcon) : '◎';
   $('#location-status').textContent = active
     ? 'Live location is on. Your marker will keep moving while this map is open.'
     : 'Choose an icon, then allow location access.';
