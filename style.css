@@ -128,3 +128,5 @@ html{-webkit-text-size-adjust:100%;text-size-adjust:100%}
 /* Seven map companions with matching artwork in chooser and marker. */
 .location-icon-options{grid-template-columns:repeat(4,minmax(0,1fr))}
 .location-icon-option svg,.halloween-location-icon svg,.map-button.location-live svg{display:block;width:1.1em;height:1.1em;margin:auto;flex-shrink:0}
+
+#help{font-size:23px;font-weight:700}#send-message{width:100%}.map-message{padding:12px 0;border-bottom:1px solid #574063}.map-message time{font-size:11px;color:#b7a7c4}.map-message p{white-space:pre-wrap;overflow-wrap:anywhere;font-size:14px;line-height:1.5}#message-list{margin:16px 0;max-height:55dvh;overflow:auto}
