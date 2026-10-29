@@ -124,3 +124,7 @@ html{-webkit-text-size-adjust:100%;text-size-adjust:100%}
   .filters .chip{min-width:0;min-height:44px;justify-content:center;gap:4px;padding:6px 4px;font-size:11px;line-height:1.15;white-space:normal;text-align:center}
   .filters .chip:last-child{margin-right:0}.filters .dot{width:6px;height:6px}
 }
+
+/* Six map companions with matching artwork in chooser and marker. */
+.location-icon-options{grid-template-columns:repeat(3,minmax(0,1fr))}
+.location-icon-option svg,.halloween-location-icon svg,.map-button.location-live svg{display:block;width:1.1em;height:1.1em;margin:auto;flex-shrink:0}
