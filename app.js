@@ -234,6 +234,7 @@ function setOrganizerMode(active) {
     updateExportStatus();
   }
   if (selectedId) showDetail(selectedId, false);
+  if (active && new URLSearchParams(location.search).has('message')) $('#organizer-messages')?.click();
 }
 
 function isOrganizerSession(session) {
@@ -1591,3 +1592,50 @@ window.addEventListener('load', () => {
   setTimeout(() => showWholeNeighborhood(false), innerWidth <= 700 ? 450 : 0);
 }, { once: true });
 window.addEventListener('orientationchange', () => setTimeout(() => showWholeNeighborhood(false), 250));
+
+// The message form and private inbox share the existing map sessions.
+function setupMapMessages({ $, getDb, getAdminDb, isOrganizer, ensureVisitorSession, toast, escapeHtml }) {
+ if (!$('#message-form')) return;
+ const form = $('#message-form');
+ const dialog = $('#message-dialog');
+ const inbox = $('#messages-dialog');
+ $('#help').onclick = () => { $('#message-error').textContent=''; dialog.showModal(); };
+ $('#close-message').onclick = () => dialog.close();
+ $('#close-messages').onclick = () => inbox.close();
+ async function showInbox() {
+  inbox.showModal();
+  const list=$('#message-list');
+  if(!isOrganizer()) {
+   list.textContent='Sign in as the organizer to read map messages.';
+   $('#message-login').hidden=false;
+   return;
+  }
+  $('#message-login').hidden=true;
+  list.textContent='Loading messages…';
+  try {
+   const {data,error}=await getAdminDb().from('map_messages').select('id,message,created_at').order('created_at',{ascending:false}).limit(100);
+   if(error)throw error;
+   list.innerHTML=(data||[]).map(m=>`<article class="map-message"><time>${escapeHtml(new Date(m.created_at).toLocaleString())}</time><p>${escapeHtml(m.message)}</p></article>`).join('') || 'No messages yet.';
+  } catch { list.textContent='Could not load messages. Please sign in again and retry.'; }
+ }
+ $('#organizer-messages').onclick=showInbox;
+ $('#message-login').onclick=()=>{inbox.close();$('#organizer-login').click();};
+ form.onsubmit=async event=>{
+  event.preventDefault();
+  const errorLabel=$('#message-error');
+  const text=form.elements.message.value.trim();
+  errorLabel.textContent='';
+  if(text.length<5||text.length>400){errorLabel.textContent='Please enter a message between 5 and 400 characters.';return;}
+  const button=$('#send-message');button.disabled=true;
+  try {
+   if(!getDb())throw Error('The map is still connecting. Please try again in a moment.');
+   await ensureVisitorSession();
+   const {error}=await getDb().from('map_messages').insert({message:text});
+   if(error)throw error;
+   dialog.close();form.reset();toast('Message sent. Thank you for helping improve the map!');
+  }catch(error){errorLabel.textContent=error?.message?.includes('Please wait')?'Please wait before sending another message.':'Could not send your message. Please try again shortly.';}
+  finally{button.disabled=false;}
+ };
+ if(new URLSearchParams(location.search).has('message'))showInbox();
+}
+setupMapMessages({ $, getDb: () => db, getAdminDb: () => adminDb, isOrganizer: () => isOrganizer, ensureVisitorSession, toast, escapeHtml });
