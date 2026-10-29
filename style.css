@@ -94,7 +94,7 @@ html{-webkit-text-size-adjust:100%;text-size-adjust:100%}
 .form-address-option{display:block;width:100%;padding:10px 12px;text-align:left;background:transparent;color:#f4edf9;border-bottom:1px solid #493357;font-size:12px}
 .form-address-option:last-child{border-bottom:0}.form-address-option:hover,.form-address-option:focus-visible{background:#372647;outline:0}
 
-@media(max-width:700px){.filters{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:5px;width:100%;margin:0;padding:10px 0 6px;overflow:visible}.chip{justify-content:center;gap:4px;padding:8px 4px;font-size:11px;line-height:1.15;white-space:normal;min-width:0;min-height:44px;text-align:center}.chip:last-child{margin-right:0}.chip .dot{width:6px;height:6px}}
+@media(max-width:700px){.filters{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:5px;width:100%;margin:0;padding:10px 0 6px;overflow:visible}.chip{justify-content:center;gap:4px;padding:8px 4px;font-size:11px;line-height:1.15;white-space:normal;min-width:0;min-height:44px;text-align:center}.chip:last-child{margin-right:0}.chip .dot{width:6px;height:6px}}
 @media(max-width:350px){.chip{font-size:10px;gap:3px;padding:8px 2px}}
 
 /* Public neighborhood edition and private organizer controls. */
