@@ -9,12 +9,12 @@ const config = window.HALLOWEEN_CONFIG;
 const demo = new URLSearchParams(location.search).get('demo') === '1';
 const categories = {
   candy: { label: 'Candy', icon: '🍬' },
-  nonfood: { label: 'Non Food Treats', icon: '🎁' },
+  nonfood: { label: 'Candy & Goodies', icon: '🎁' },
   adult: { label: 'Adult Treats', icon: '🥤' }
 };
 const displayCategories = {
   candy: { label: 'Candy Only', icon: '🍬', color: '#e97632' },
-  nonfood: { label: 'Non Food Treats', icon: '🎁', color: '#e7bd3c' },
+  nonfood: { label: 'Candy & Goodies', icon: '🎁', color: '#e7bd3c' },
   adult: { label: 'Adult Treats', icon: '🥤', color: '#a275df' },
   allthree: { label: 'All Three', icon: '🎃', color: '#43ae87' }
 };
@@ -265,7 +265,7 @@ async function exportHomeList() {
       .eq('approval_status', 'approved')
       .order('address');
     if (error) throw error;
-    const headers = ['Address', 'Display name', 'Candy', 'Non food treats', 'Adult treats', 'Notes', 'Added', 'Latitude', 'Longitude'];
+    const headers = ['Address', 'Display name', 'Candy', 'Candy & Goodies', 'Adult treats', 'Notes', 'Added', 'Latitude', 'Longitude'];
     const rows = (data || []).map((stop) => [
       stop.address,
       stop.title,
