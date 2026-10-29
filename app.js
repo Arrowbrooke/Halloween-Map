@@ -43,6 +43,7 @@ let userMarker = null;
 let userLocationWatchId = null;
 let lastUserLatLng = null;
 let selectedLocationIcon = localStorage.getItem('arrowbrooke-location-icon') || '🎃';
+if (selectedLocationIcon === '🦇') selectedLocationIcon = '👸';
 let searchMarker = null;
 let searchTimer = null;
 let searchRequest = 0;
@@ -194,6 +195,7 @@ async function loadNeighborhoodAddresses() {
     if (!response.ok) throw new Error('Address file unavailable');
     neighborhoodAddressData = applyAddressCorrections(await response.json());
     for (const feature of neighborhoodAddressData.features || []) {
+      feature.properties.address_key = normalizeAddressText(`${feature.properties.number} ${feature.properties.street}`);
       if (feature.properties?.building_match_m != null) continue;
       feature.properties.address_lng = feature.geometry.coordinates[0];
       feature.properties.address_lat = feature.geometry.coordinates[1];
@@ -578,6 +580,7 @@ function ensureMapEnhancements() {
 const markers = L.layerGroup().addTo(map);
 const houseLayers = L.layerGroup().addTo(map);
 const houseCache = new Map();
+let homeNumberFilterKey = '';
 const homeRenderer = L.svg({ padding: 0.5 });
 let shapeRefreshTimer;
 let pinSequence = 0;
@@ -888,10 +891,22 @@ function visibleStops() {
   );
 }
 
+function syncHomeNumberLabels(visible) {
+  if (!streetMap?.getLayer('arrowbrooke-address-labels')) return;
+  const keys = map.getZoom() >= 17
+    ? [...new Set(visible.map(stop => normalizeAddressText(stop.address)))].sort() : [];
+  const key = JSON.stringify(keys);
+  if (key === homeNumberFilterKey) return;
+  streetMap.setFilter('arrowbrooke-address-labels', keys.length
+    ? ['!', ['in', ['get', 'address_key'], ['literal', keys]]] : null);
+  homeNumberFilterKey = key;
+}
+
 function drawMapStops() {
   markers.clearLayers();
   houseLayers.clearLayers();
   const visible = visibleStops();
+  syncHomeNumberLabels(visible);
   const used = new Set();
   let buildings = [];
   if (streetMap && map.getZoom() >= 16) {
@@ -900,9 +915,12 @@ function drawMapStops() {
 
   for (const stop of visible) {
     let home = houseCache.get(stop.id);
-    if (!home && buildings.length) {
-      home = findHome(buildings, stop.lng, stop.lat, demo ? 65 : 18, used);
-      if (home) houseCache.set(stop.id, home);
+    if (buildings.length) {
+      const detailedHome = findHome(buildings, stop.lng, stop.lat, demo ? 65 : 18, used);
+      if (detailedHome) {
+        home = detailedHome;
+        houseCache.set(stop.id, home);
+      }
     }
     if (home) used.add(homeKey(home));
 
