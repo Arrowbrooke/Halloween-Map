@@ -1,11 +1,12 @@
 import { readFile, writeFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
+import { applyAddressCorrections } from '../address-corrections.js';
 
 const projectRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const sourcePath = path.join(projectRoot, 'arrowbrooke-addresses.geojson');
 const outputPath = path.join(projectRoot, 'supabase-address-validation.sql');
-const source = JSON.parse(await readFile(sourcePath, 'utf8'));
+const source = applyAddressCorrections(JSON.parse(await readFile(sourcePath, 'utf8')));
 
 const uppercaseWords = new Set(['FM']);
 const displayStreetName = (value) => String(value || '').toLowerCase().split(/\s+/).map((part) => {
