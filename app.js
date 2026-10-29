@@ -2,7 +2,7 @@ import { displayCategory } from './display-category.js?v=20261028-category-color
 import { distanceToHome, findHome, homeKey, homeCenter } from './home-shapes.js';
 import { pickStopName } from './stop-names.js?v=20261028-many-names';
 import { lookupAddress } from './address-lookup.js';
-import { applyAddressCorrections } from './address-corrections.js?v=20261028-white-water-center';
+import { applyAddressCorrections } from './address-corrections.js?v=20261028-address-centering';
 
 const $ = (selector) => document.querySelector(selector);
 const config = window.HALLOWEEN_CONFIG;
@@ -190,7 +190,7 @@ function normalizeAddressText(value) {
 
 async function loadNeighborhoodAddresses() {
   try {
-    const response = await fetch('arrowbrooke-addresses.geojson?v=20261028-white-water-center', { credentials: 'same-origin' });
+    const response = await fetch('arrowbrooke-addresses.geojson?v=20261028-address-centering', { credentials: 'same-origin' });
     if (!response.ok) throw new Error('Address file unavailable');
     neighborhoodAddressData = applyAddressCorrections(await response.json());
     for (const feature of neighborhoodAddressData.features || []) {
@@ -618,7 +618,7 @@ function snapVisibleAddressLabels() {
     if (feature.properties?.building_match_m != null) return;
     const lng = feature.properties.address_lng ?? feature.geometry.coordinates[0];
     const lat = feature.properties.address_lat ?? feature.geometry.coordinates[1];
-    if (!bounds.contains([lat, lng])) return;
+    if (!bounds.contains([lng, lat])) return;
     visibleAddresses.push({ feature, index, lng, lat });
     for (let buildingIndex = 0; buildingIndex < parts.length; buildingIndex += 1) {
       const distance = distanceToHome(parts[buildingIndex], lng, lat);
