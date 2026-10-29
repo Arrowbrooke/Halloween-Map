@@ -234,7 +234,7 @@ function setOrganizerMode(active) {
     updateExportStatus();
   }
   if (selectedId) showDetail(selectedId, false);
-  if (active && new URLSearchParams(location.search).has('message')) $('#organizer-messages')?.click();
+  if (active && $('#messages-dialog')?.open) $('#organizer-messages')?.click();
 }
 
 function isOrganizerSession(session) {
@@ -1636,6 +1636,11 @@ function setupMapMessages({ $, getDb, getAdminDb, isOrganizer, ensureVisitorSess
   }catch(error){errorLabel.textContent=error?.message?.includes('Please wait')?'Please wait before sending another message.':'Could not send your message. Please try again shortly.';}
   finally{button.disabled=false;}
  };
- if(new URLSearchParams(location.search).has('message'))showInbox();
+ if(new URLSearchParams(location.search).has('message')) {
+  const cleanUrl=new URL(location.href);
+  cleanUrl.searchParams.delete('message');
+  history.replaceState(history.state,'',cleanUrl.pathname+cleanUrl.search+cleanUrl.hash);
+  showInbox();
+ }
 }
 setupMapMessages({ $, getDb: () => db, getAdminDb: () => adminDb, isOrganizer: () => isOrganizer, ensureVisitorSession, toast, escapeHtml });
