@@ -408,6 +408,9 @@ function ensureMapEnhancements() {
     }
   }, streetMap.getLayer('building-3d') ? 'building-3d' : undefined);
 
+  streetMap.addSource('arrowbrooke-participating-homes', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
+  streetMap.addLayer({ id: 'arrowbrooke-home-colors', type: 'fill', source: 'arrowbrooke-participating-homes', paint: { 'fill-color': ['get', 'color'], 'fill-opacity': 0.78 } });
+  streetMap.addLayer({ id: 'arrowbrooke-home-outlines', type: 'line', source: 'arrowbrooke-participating-homes', paint: { 'line-color': ['get', 'color'], 'line-width': ['case', ['get', 'selected'], 2.5, 1.3], 'line-opacity': 0.9 } });
   streetMap.addSource('arrowbrooke-addresses', { type: 'geojson', data: neighborhoodAddressData });
   streetMap.addLayer({
     id: 'arrowbrooke-address-labels',
@@ -581,6 +584,7 @@ const markers = L.layerGroup().addTo(map);
 const houseLayers = L.layerGroup().addTo(map);
 const houseCache = new Map();
 let homeNumberFilterKey = '';
+let paintedHomeDataKey = '';
 const homeRenderer = L.svg({ padding: 0.5 });
 let shapeRefreshTimer;
 let pinSequence = 0;
@@ -907,6 +911,7 @@ function drawMapStops() {
   houseLayers.clearLayers();
   const visible = visibleStops();
   syncHomeNumberLabels(visible);
+  const paintedHomes = [];
   const used = new Set();
   let buildings = [];
   if (streetMap && map.getZoom() >= 16) {
@@ -937,6 +942,12 @@ function drawMapStops() {
 
     const color = displayCategories[displayCategory(stop)].color;
     const feature = { type: 'Feature', properties: {}, geometry: home };
+    if (streetMap?.getSource('arrowbrooke-participating-homes')) {
+      paintedHomes.push({ ...feature, properties: { color, selected: selectedId === stop.id } });
+      L.geoJSON(feature, { renderer: homeRenderer, bubblingMouseEvents: false, style: { weight: 14, opacity: 0, fillOpacity: 0, className: 'house-hit-area' } }).addTo(houseLayers).on('click', () => showDetail(stop.id));
+      addHouseNumber(stop, homeCenter(home));
+      continue;
+    }
     L.geoJSON(feature, { renderer: homeRenderer, interactive: false, style: { fill: false, color, weight: 7, opacity: 0.18, lineJoin: 'round' } }).addTo(houseLayers);
     const layer = L.geoJSON(feature, {
       renderer: homeRenderer,
@@ -959,6 +970,12 @@ function drawMapStops() {
     L.geoJSON(feature, { renderer: homeRenderer, bubblingMouseEvents: false, style: { color, weight: 14, opacity: 0, fillOpacity: 0, className: 'house-hit-area' } }).addTo(houseLayers).on('click', () => showDetail(stop.id));
     layer.bringToFront();
     addHouseNumber(stop, homeCenter(home));
+  }
+  const paintedKey = JSON.stringify(paintedHomes);
+  const paintedSource = streetMap?.getSource('arrowbrooke-participating-homes');
+  if (paintedSource && paintedKey !== paintedHomeDataKey) {
+    paintedSource.setData({ type: 'FeatureCollection', features: paintedHomes });
+    paintedHomeDataKey = paintedKey;
   }
 }
 
