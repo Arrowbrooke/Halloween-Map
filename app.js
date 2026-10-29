@@ -2,7 +2,7 @@ import { displayCategory } from './display-category.js?v=20261028-category-color
 import { distanceToHome, findHome, homeKey, homeCenter } from './home-shapes.js';
 import { pickStopName } from './stop-names.js?v=20261028-many-names';
 import { lookupAddress } from './address-lookup.js';
-import { applyAddressCorrections } from './address-corrections.js?v=20261028-address-centering-v2';
+import { applyAddressCorrections } from './address-corrections.js?v=20261028-address-cleanup-v3';
 
 const $ = (selector) => document.querySelector(selector);
 const config = window.HALLOWEEN_CONFIG;
@@ -190,7 +190,7 @@ function normalizeAddressText(value) {
 
 async function loadNeighborhoodAddresses() {
   try {
-    const response = await fetch('arrowbrooke-addresses.geojson?v=20261028-address-centering-v2', { credentials: 'same-origin' });
+    const response = await fetch('arrowbrooke-addresses.geojson?v=20261028-address-cleanup-v3', { credentials: 'same-origin' });
     if (!response.ok) throw new Error('Address file unavailable');
     neighborhoodAddressData = applyAddressCorrections(await response.json());
     for (const feature of neighborhoodAddressData.features || []) {
