@@ -1487,7 +1487,7 @@ async function initialize() {
     db = window.supabase.createClient(config.supabaseUrl, config.supabaseKey);
     adminDb = window.supabase.createClient(config.supabaseUrl, config.supabaseKey, {
       auth: {
-        storage: window.sessionStorage,
+        storage: window.localStorage,
         storageKey: 'arrowbrooke-organizer-session',
         persistSession: true,
         autoRefreshToken: true,
