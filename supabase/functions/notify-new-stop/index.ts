@@ -6,6 +6,7 @@ type StopRecord = {
   title: string;
   address: string;
   categories: string[];
+  message?: string;
 };
 
 type WebhookPayload = {
@@ -61,7 +62,8 @@ Deno.serve(async (request) => {
 
   const payload = await request.json() as WebhookPayload;
   const stop = payload.record;
-  if (payload.type !== 'INSERT' || payload.schema !== 'public' || payload.table !== 'stops' || !stop?.id) {
+  const isMapMessage = payload.table === 'map_messages';
+  if (payload.type !== 'INSERT' || payload.schema !== 'public' || !['stops', 'map_messages'].includes(payload.table) || !stop?.id) {
     return json({ skipped: true });
   }
 
@@ -107,15 +109,15 @@ Deno.serve(async (request) => {
 
   const categoryNames: Record<string, string> = {
     candy: 'Candy',
-    nonfood: 'Non food treats',
+    nonfood: 'Candy & Goodies',
     adult: 'Adult treats'
   };
   const offerings = (stop.categories || []).map((category) => categoryNames[category] || category).join(' + ');
   const message = JSON.stringify({
-    title: 'New Halloween home 🎃',
-    body: `${stop.address}${offerings ? `\n${offerings}` : ''}`,
-    tag: `new-stop-${stop.id}`,
-    url: `https://arrowbrooke.github.io/Halloween-Map/?stop=${encodeURIComponent(stop.id)}`
+    title: isMapMessage ? 'Map message 💬' : 'New Halloween home 🎃',
+    body: isMapMessage ? String(stop.message || '').slice(0, 400) : `${stop.address}${offerings ? `\n${offerings}` : ''}`,
+    tag: `${isMapMessage ? 'map-message' : 'new-stop'}-${stop.id}`,
+    url: `https://arrowbrooke.github.io/Halloween-Map/?${isMapMessage ? 'message' : 'stop'}=${encodeURIComponent(stop.id)}`
   });
 
   let delivered = 0;
