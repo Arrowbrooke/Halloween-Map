@@ -6,7 +6,7 @@ const removedAddressKeys = new Set([
 const addedAddresses = [
   {
     type: 'Feature',
-    properties: { number: '1455', street: 'WHITE WATER WAY', building_match_m: 0 },
+    properties: { number: '1455', street: 'WHITE WATER WAY' },
     geometry: { type: 'Point', coordinates: [-96.9018221, 33.248491575] }
   }
 ];
