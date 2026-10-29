@@ -1526,40 +1526,53 @@ function setSheetState(state) {
 }
 
 const sheetHandle = $('#sheet-toggle');
+const sheetPanel = document.querySelector('.explore');
+const sheetDragSurfaces = [sheetHandle, sheetPanel.querySelector('.eyebrow'), sheetPanel.querySelector('.title-row')];
 let sheetDrag = null;
 let suppressSheetClick = false;
-sheetHandle.addEventListener('pointerdown', (event) => {
-  if (innerWidth > 700) return;
-  const panel = document.querySelector('.explore');
-  sheetDrag = { startY: event.clientY, startHeight: panel.getBoundingClientRect().height, pointerId: event.pointerId, moved: false };
+const usesMobileSheet = () => innerWidth <= 700 || (innerHeight <= 500 && matchMedia('(pointer: coarse)').matches);
+const isPhoneLandscapeSheet = () => innerWidth > 700 && innerHeight <= 500 && matchMedia('(pointer: coarse)').matches;
+
+function beginSheetDrag(event) {
+  if (!usesMobileSheet() || event.button > 0) return;
+  sheetDrag = { startY: event.clientY, startHeight: sheetPanel.getBoundingClientRect().height, pointerId: event.pointerId, moved: false, startedOnHandle: event.currentTarget === sheetHandle };
   sheetHandle.setPointerCapture(event.pointerId);
   document.body.classList.add('sheet-dragging');
   document.body.classList.remove('sheet-expanded', 'sheet-minimized');
   document.documentElement.style.setProperty('--sheet-height', `${sheetDrag.startHeight}px`);
-});
-sheetHandle.addEventListener('pointermove', (event) => {
+}
+
+function moveSheetDrag(event) {
   if (!sheetDrag || event.pointerId !== sheetDrag.pointerId) return;
   const distance = sheetDrag.startY - event.clientY;
   if (Math.abs(distance) > 5) sheetDrag.moved = true;
-  const height = Math.max(64, Math.min(innerHeight * 0.72, sheetDrag.startHeight + distance));
+  const maximumHeight = innerHeight * (isPhoneLandscapeSheet() ? 0.88 : 0.72);
+  const height = Math.max(isPhoneLandscapeSheet() ? 56 : 64, Math.min(maximumHeight, sheetDrag.startHeight + distance));
   document.documentElement.style.setProperty('--sheet-height', `${height}px`);
-});
+}
+
 function finishSheetDrag(event) {
   if (!sheetDrag || event.pointerId !== sheetDrag.pointerId) return;
-  const height = document.querySelector('.explore').getBoundingClientRect().height;
+  const landscape = isPhoneLandscapeSheet();
+  const height = sheetPanel.getBoundingClientRect().height;
   const stops = [
-    { state: 'minimized', height: 64 },
-    { state: 'medium', height: innerHeight * 0.34 },
-    { state: 'expanded', height: innerHeight * 0.67 }
+    { state: 'minimized', height: landscape ? 56 : 64 },
+    { state: 'medium', height: innerHeight * (landscape ? 0.46 : 0.34) },
+    { state: 'expanded', height: innerHeight * (landscape ? 0.86 : 0.67) }
   ];
   const nearest = stops.reduce((best, stop) => Math.abs(stop.height - height) < Math.abs(best.height - height) ? stop : best);
-  suppressSheetClick = sheetDrag.moved;
+  suppressSheetClick = sheetDrag.moved && sheetDrag.startedOnHandle;
   sheetDrag = null;
   document.body.classList.remove('sheet-dragging');
   setSheetState(nearest.state);
 }
-sheetHandle.addEventListener('pointerup', finishSheetDrag);
-sheetHandle.addEventListener('pointercancel', finishSheetDrag);
+
+for (const surface of sheetDragSurfaces) {
+  surface.addEventListener('pointerdown', beginSheetDrag);
+  surface.addEventListener('pointermove', moveSheetDrag);
+  surface.addEventListener('pointerup', finishSheetDrag);
+  surface.addEventListener('pointercancel', finishSheetDrag);
+}
 sheetHandle.onclick = () => {
   if (suppressSheetClick) { suppressSheetClick = false; return; }
   const nextState = document.body.classList.contains('sheet-expanded') ? 'medium' : 'expanded';

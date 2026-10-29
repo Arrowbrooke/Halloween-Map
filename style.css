@@ -37,6 +37,27 @@
 }
 @media(max-width:370px){h1{font-size:18px}.ghost{font-size:23px}.explore{padding-left:17px;padding-right:17px}.chip{padding-left:12px;padding-right:12px}}
 
+/* Touch phones in landscape are wider than the normal phone breakpoint. */
+@media (max-height:500px) and (pointer:coarse) and (min-width:701px){
+  :root{--sheet-height:46dvh}
+  .sheet-expanded{--sheet-height:86dvh}
+  .sheet-minimized{--sheet-height:56px}
+  .explore{top:auto;left:12px;bottom:max(10px,env(safe-area-inset-bottom));width:min(382px,calc(100vw - 24px));height:var(--sheet-height);max-height:none;padding:0 20px 14px;border-radius:20px;overflow:auto;transition:height .2s ease;scrollbar-width:thin}
+  .sheet-dragging .explore{transition:none;user-select:none}
+  .sheet-handle{display:flex;align-items:center;justify-content:center;width:100%;height:32px;background:transparent;margin:0;touch-action:none;cursor:ns-resize}
+  .sheet-handle span{width:48px;height:5px;background:#8b6b9b;border-radius:4px;box-shadow:0 0 0 8px #8b6b9b16}
+  .explore>.eyebrow,.explore>.title-row{touch-action:none}
+  .sheet-minimized .explore{overflow:hidden}
+  .sheet-minimized .explore>:not(.sheet-handle):not(.title-row){display:none}
+  .sheet-minimized .title-row{margin:0;pointer-events:auto}
+  .sheet-minimized h1{font-size:15px}
+  .sheet-minimized .ghost{font-size:19px}
+  .desktop-title{display:none}.phone-title{display:inline}
+  .title-row{margin:2px 0 8px}h1{font-size:18px}.ghost{font-size:22px}
+  .intro{display:none}.connection{font-size:9px;padding:6px 8px}.public-list-heading{margin-top:14px}
+  .sheet-expanded .map-controls,.sheet-expanded .add-button{visibility:hidden}
+}
+
 /* Private, continuously updating Halloween location marker. */
 .location-icon-options{display:grid;grid-template-columns:repeat(4,1fr);gap:9px;margin:20px 0 16px}.location-icon-option{display:flex;flex-direction:column;align-items:center;gap:7px;padding:12px 5px;border-radius:14px;border:1px solid #574063;background:#20172d;color:#e8dced;font-size:11px}.location-icon-option span{font-size:30px;line-height:1}.location-icon-option[aria-pressed="true"]{border-color:#efa14e;background:#4b324b;box-shadow:0 0 0 2px #efa14e33}.location-sharing-actions{display:flex;gap:9px;margin-top:18px}.location-sharing-actions>*{flex:1}.map-button.location-live{background:#4b324b;border-color:#efa14e;box-shadow:0 0 0 3px #efa14e33,var(--shadow);font-size:22px}.halloween-location-shell{background:none!important;border:0!important}.halloween-location-icon{display:grid;place-items:center;width:46px;height:46px;border-radius:50%;font-size:29px;background:#251b34e8;border:3px solid #fff2dc;box-shadow:0 0 0 6px #efa14e55,0 4px 15px #090411aa;animation:location-pulse 2s ease-in-out infinite}@keyframes location-pulse{0%,100%{box-shadow:0 0 0 5px #efa14e42,0 4px 15px #090411aa}50%{box-shadow:0 0 0 11px #efa14e12,0 4px 18px #090411cc}}@media(max-width:430px){.location-icon-options{gap:6px}.location-icon-option{padding:11px 2px}.location-sharing-actions{flex-direction:column}}
 
