@@ -15,15 +15,25 @@ const removedAddressKeys = new Set([
 const addedAddresses = [
   {
     type: 'Feature',
-    properties: { number: '1455', street: 'WHITE WATER WAY' },
+    properties: { number: '1455', street: 'WHITE WATER WAY', building_match_m: 0 },
     geometry: { type: 'Point', coordinates: [-96.9018221, 33.248491575] }
   },
   {
     type: 'Feature',
-    properties: { number: '1501', street: 'BERRY RIDGE TRL' },
-    geometry: { type: 'Point', coordinates: [-96.9016243, 33.2504157] }
+    properties: { number: '1501', street: 'BERRY RIDGE TRL', building_match_m: 0 },
+    geometry: { type: 'Point', coordinates: [-96.90147, 33.25018] }
   }
 ];
+
+const correctedCoordinates = new Map([
+  ['3321 ANTELOPE VIEW', [-96.908904, 33.251109]],
+  ['1321 COYOTE RIDGE', [-96.9054025, 33.251126]],
+  ['3330 ADOBE VISTA', [-96.905294, 33.251072]],
+  ['3316 ADOBE VISTA', [-96.905206, 33.250916]],
+  ['1500 BERRY RIDGE TRL', [-96.901482, 33.24997]],
+  ['3324 GRANDE VIEW', [-96.897099, 33.250828]],
+  ['1308 MORNING RIDGE TRL', [-96.906044, 33.250008]]
+]);
 
 const addressKey = (feature) => {
   const number = String(feature.properties?.number || '').trim();
@@ -32,7 +42,16 @@ const addressKey = (feature) => {
 };
 
 export function applyAddressCorrections(collection) {
-  const features = (collection.features || []).filter((feature) => !removedAddressKeys.has(addressKey(feature)));
+  const features = (collection.features || [])
+    .filter((feature) => !removedAddressKeys.has(addressKey(feature)))
+    .map((feature) => {
+      const coordinates = correctedCoordinates.get(addressKey(feature));
+      if (!coordinates) return feature;
+      const corrected = structuredClone(feature);
+      corrected.geometry.coordinates = [...coordinates];
+      corrected.properties.building_match_m = 0;
+      return corrected;
+    });
   const existing = new Set(features.map(addressKey));
   for (const feature of addedAddresses) {
     if (!existing.has(addressKey(feature))) features.push(structuredClone(feature));
