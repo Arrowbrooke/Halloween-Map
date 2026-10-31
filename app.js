@@ -699,7 +699,6 @@ if (streetMap) {
     try { snapVisibleAddressLabels(); } catch { /* labels retry after the next tile update */ }
     try {
       updateGreenbeltLabels();
-      if (streetMap.getLayer('arrowbrooke-gp-labels')) streetMap.moveLayer('arrowbrooke-gp-labels');
     } catch { /* GP labels retry after the next tile update */ }
   });
   streetMap.on('sourcedata', (event) => {
