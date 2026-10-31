@@ -585,6 +585,12 @@ const houseLayers = L.layerGroup().addTo(map);
 const houseCache = new Map();
 let homeNumberFilterKey = '';
 let paintedHomeDataKey = '';
+let buildingDataRevision = 0;
+let buildingSnapshotKey = '';
+let buildingSnapshot = [];
+let matchedHomesKey = '';
+let renderedHomesKey = '';
+let mapViewChanging = false;
 const homeRenderer = L.svg({ padding: 0.5 });
 let shapeRefreshTimer;
 let pinSequence = 0;
@@ -593,6 +599,8 @@ let gpLabelsRenderedKey = '';
 
 function mapBuildingFeatures() {
   if (!streetMap) return [];
+  const snapshotKey = `${buildingDataRevision}|${map.getZoom()}|${map.getBounds().toBBoxString()}`;
+  if (snapshotKey === buildingSnapshotKey) return buildingSnapshot;
   try {
     const candidates = [
       ...streetMap.queryRenderedFeatures({ layers: ['building', 'arrowbrooke-building-supplement'].filter(id => streetMap.getLayer(id)) }),
@@ -604,7 +612,9 @@ function mapBuildingFeatures() {
       const geometry = feature?.geometry;
       if (geometry) uniqueBuildings.set(homeKey(geometry), feature);
     }
-    return [...uniqueBuildings.values()];
+    buildingSnapshot = [...uniqueBuildings.values()];
+    buildingSnapshotKey = snapshotKey;
+    return buildingSnapshot;
   } catch { return []; }
 }
 
@@ -693,10 +703,14 @@ if (streetMap) {
     } catch { /* GP labels retry after the next tile update */ }
   });
   streetMap.on('sourcedata', (event) => {
-    if (event.sourceId === 'openmaptiles' || event.sourceId === 'arrowbrooke-buildings') scheduleHomes();
+    if (event.sourceId === 'openmaptiles' || event.sourceId === 'arrowbrooke-buildings') {
+      buildingDataRevision += 1;
+      scheduleHomes();
+    }
   });
 }
-map.on('moveend', scheduleHomes);
+map.on('movestart', () => { mapViewChanging = true; });
+map.on('moveend', () => { mapViewChanging = false; scheduleHomes(); });
 
 function showWholeNeighborhood(animate = false) {
   if (innerWidth > 700 || !Array.isArray(config.focusBoundary)) {
@@ -908,8 +922,7 @@ function syncHomeNumberLabels(visible) {
 }
 
 function drawMapStops() {
-  markers.clearLayers();
-  houseLayers.clearLayers();
+  if (mapViewChanging) return;
   const visible = visibleStops();
   syncHomeNumberLabels(visible);
   const paintedHomes = [];
@@ -919,9 +932,11 @@ function drawMapStops() {
     buildings = mapBuildingFeatures();
   }
 
-  for (const stop of visible) {
+  const matchKey = `${buildingSnapshotKey}|${visible.map(stop => `${stop.id}:${stop.lng}:${stop.lat}`).join('|')}`;
+  const rematchHomes = matchKey !== matchedHomesKey;
+  const plannedHomes = visible.map(stop => {
     let home = houseCache.get(stop.id);
-    if (buildings.length) {
+    if ((rematchHomes || !home) && buildings.length) {
       const detailedHome = findHome(buildings, stop.lng, stop.lat, demo ? 65 : 18, used);
       if (detailedHome) {
         home = detailedHome;
@@ -929,6 +944,15 @@ function drawMapStops() {
       }
     }
     if (home) used.add(homeKey(home));
+    return { stop, home };
+  });
+  if (buildings.length) matchedHomesKey = matchKey;
+  const renderKey = JSON.stringify([map.getZoom(), Boolean(streetMap?.getSource('arrowbrooke-participating-homes')), selectedId,
+    plannedHomes.map(({stop,home}) => [stop.id,stop.title,stop.address,displayCategory(stop),stop.lat,stop.lng,home ? homeKey(home) : null])]);
+  if (renderKey === renderedHomesKey) return;
+  markers.clearLayers();
+  houseLayers.clearLayers();
+  for (const { stop, home } of plannedHomes) {
 
     if (map.getZoom() < 17) {
       const position = home ? homeCenter(home) : [stop.lat, stop.lng];
@@ -978,6 +1002,7 @@ function drawMapStops() {
     paintedSource.setData({ type: 'FeatureCollection', features: paintedHomes });
     paintedHomeDataKey = paintedKey;
   }
+  renderedHomesKey = renderKey;
 }
 
 function render() {
@@ -1507,13 +1532,57 @@ window.addEventListener('pagehide', () => {
 });
 refreshLocationControls();
 
-async function loadStops() {
-  const { data, error } = await db.from('stops').select('*').eq('event_date', config.eventDate).eq('approval_status', 'approved').order('created_at');
-  if (error) throw error;
-  stops = data.filter((stop) => Array.isArray(stop.categories) && stop.categories.length && stop.categories.every((key) => categories[key]) && inNeighborhood(stop.lat, stop.lng));
-  render();
-  if (selectedId && stops.some((stop) => stop.id === selectedId)) showDetail(selectedId, false);
+let stopsRefreshPromise = null;
+let stopsRealtimeRevision = 0;
+let stopsRefreshTimer;
+
+function validPublicStop(stop) {
+  return stop?.event_date === config.eventDate && stop.approval_status === 'approved'
+    && Array.isArray(stop.categories) && stop.categories.length
+    && stop.categories.every(key => categories[key]) && inNeighborhood(stop.lat, stop.lng);
 }
+
+function queueStopsRefresh() {
+  clearTimeout(stopsRefreshTimer);
+  stopsRefreshTimer = setTimeout(() => loadStops().catch(() => status('Reconnecting · New homes may be delayed.')), 300);
+}
+
+function applyStopChange(payload) {
+  const id = payload.eventType === 'DELETE' ? payload.old?.id : payload.new?.id;
+  if (!id || (payload.eventType !== 'DELETE' && !payload.new?.event_date)) { queueStopsRefresh(); return; }
+  stopsRealtimeRevision += 1;
+  stops = stops.filter(stop => stop.id !== id);
+  if (payload.eventType !== 'DELETE' && validPublicStop(payload.new)) stops.push(payload.new);
+  else houseCache.delete(id);
+  stops.sort((a,b) => String(a.created_at || '').localeCompare(String(b.created_at || '')) || String(a.id).localeCompare(String(b.id)));
+  if (document.hidden) return;
+  render();
+  if (selectedId === id && stops.some(stop => stop.id === id)) showDetail(id, false);
+}
+
+function loadStops() {
+  if (stopsRefreshPromise) return stopsRefreshPromise;
+  stopsRefreshPromise = (async () => {
+    // If a live event arrives during the snapshot request, read again so an
+    // older response cannot overwrite a newly added, edited, or removed home.
+    let revision;
+    let data;
+    do {
+      revision = stopsRealtimeRevision;
+      const result = await db.from('stops').select('*').eq('event_date', config.eventDate).eq('approval_status', 'approved').order('created_at');
+      if (result.error) throw result.error;
+      data = result.data || [];
+    } while (revision !== stopsRealtimeRevision);
+    stops = data.filter(validPublicStop);
+    render();
+    if (selectedId && stops.some(stop => stop.id === selectedId)) showDetail(selectedId, false);
+  })().finally(() => { stopsRefreshPromise = null; });
+  return stopsRefreshPromise;
+}
+
+document.addEventListener('visibilitychange', () => {
+  if (!document.hidden && db && !demo) loadStops().catch(() => status('Offline · Showing the last loaded homes.'));
+});
 
 async function initialize() {
   prepareServiceWorker()?.catch(() => {});
@@ -1539,11 +1608,13 @@ async function initialize() {
     db.auth.onAuthStateChange((event, session) => { if (session?.access_token) setTimeout(() => db.realtime.setAuth(session.access_token), 0); });
     await ensureVisitorSession();
     await loadStops();
-    db.channel('halloween-stops').on('postgres_changes', { event: '*', schema: 'public', table: 'stops' }, () => loadStops().catch(() => status('Reconnecting · New homes may be delayed.'))).subscribe((state) => {
+    db.channel('halloween-stops').on('postgres_changes', { event: '*', schema: 'public', table: 'stops' }, applyStopChange).subscribe((state) => {
       if (state === 'SUBSCRIBED') { status('● Neighborhood map is live · New homes appear automatically.', true); loadStops().catch(() => status('Could not refresh homes. Check your connection.')); }
       else if (['CHANNEL_ERROR', 'TIMED_OUT', 'CLOSED'].includes(state)) status('Reconnecting · New homes may be delayed.');
     });
-    setInterval(() => loadStops().catch(() => status('Offline · Showing the last loaded homes.')), 120000);
+    setInterval(() => {
+      if (!document.hidden) loadStops().catch(() => status('Offline · Showing the last loaded homes.'));
+    }, 120000 + Math.floor(Math.random() * 30000));
     const requested = new URLSearchParams(location.search).get('stop');
     if (requested) showDetail(requested);
   } catch { status('Could not connect to the neighborhood map. Please try reloading.'); render(); }
