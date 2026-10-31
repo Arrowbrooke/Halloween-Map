@@ -34,6 +34,7 @@ let stops = [];
 let selectedId = null;
 let filter = new Set();
 let db = null;
+let publicDb = null;
 let adminDb = null;
 let isOrganizer = false;
 let currentUserId = null;
@@ -237,6 +238,7 @@ function setOrganizerMode(active) {
   }
   if (selectedId) showDetail(selectedId, false);
   if (active && $('#messages-dialog')?.open) $('#organizer-messages')?.click();
+  setTimeout(syncOrganizerLiveUpdates, 0);
 }
 
 function isOrganizerSession(session) {
@@ -1111,7 +1113,6 @@ async function ensureVisitorSession() {
     session = result.data.session;
   }
   currentUserId = session.user.id;
-  await db.realtime.setAuth(session.access_token);
 }
 
 function streetNearPin(lat, lng) {
@@ -1534,6 +1535,34 @@ refreshLocationControls();
 let stopsRefreshPromise = null;
 let stopsRealtimeRevision = 0;
 let stopsRefreshTimer;
+let organizerLiveChannel = null;
+
+function syncOrganizerLiveUpdates() {
+  if (!adminDb || demo) return;
+  if (!isOrganizer) {
+    const oldChannel = organizerLiveChannel;
+    organizerLiveChannel = null;
+    if (oldChannel) {
+      adminDb.removeChannel(oldChannel).catch(() => {});
+      status('● Map ready · Homes refresh automatically.', true);
+    }
+    return;
+  }
+  if (organizerLiveChannel) return;
+  const channel = adminDb.channel('organizer-halloween-stops');
+  organizerLiveChannel = channel;
+  channel.on('postgres_changes', { event: '*', schema: 'public', table: 'stops' }, payload => {
+    if (isOrganizer && organizerLiveChannel === channel) applyStopChange(payload);
+  }).subscribe(state => {
+    if (!isOrganizer || organizerLiveChannel !== channel) return;
+    if (state === 'SUBSCRIBED') {
+      status('● Organizer live updates connected.', true);
+      queueStopsRefresh();
+    } else if (['CHANNEL_ERROR', 'TIMED_OUT', 'CLOSED'].includes(state)) {
+      status('Live updates reconnecting · Homes still refresh periodically.');
+    }
+  });
+}
 
 function validPublicStop(stop) {
   return stop?.event_date === config.eventDate && stop.approval_status === 'approved'
@@ -1568,12 +1597,13 @@ function loadStops() {
     let data;
     do {
       revision = stopsRealtimeRevision;
-      const result = await db.from('stops').select('*').eq('event_date', config.eventDate).eq('approval_status', 'approved').order('created_at');
+      const result = await (publicDb || db).from('stops').select('*').eq('event_date', config.eventDate).eq('approval_status', 'approved').order('created_at');
       if (result.error) throw result.error;
       data = result.data || [];
     } while (revision !== stopsRealtimeRevision);
     stops = data.filter(validPublicStop);
     render();
+    if (!isOrganizer) status('● Map ready · Homes refresh automatically.', true);
     if (selectedId && stops.some(stop => stop.id === selectedId)) showDetail(selectedId, false);
   })().finally(() => { stopsRefreshPromise = null; });
   return stopsRefreshPromise;
@@ -1589,6 +1619,10 @@ async function initialize() {
   if (!config.supabaseUrl || !config.supabaseKey) { status('Map setup in progress · Open the demo preview to explore the design.'); render(); return; }
   try {
     db = window.supabase.createClient(config.supabaseUrl, config.supabaseKey);
+    // Viewing uses the public read policy, independent of visitor sign-in.
+    publicDb = window.supabase.createClient(config.supabaseUrl, config.supabaseKey, {
+      auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false, storageKey: 'arrowbrooke-public-reader' }
+    });
     adminDb = window.supabase.createClient(config.supabaseUrl, config.supabaseKey, {
       auth: {
         storage: window.localStorage,
@@ -1598,22 +1632,19 @@ async function initialize() {
         detectSessionInUrl: false
       }
     });
-    const { data: organizerSessionData } = await adminDb.auth.getSession();
-    setOrganizerMode(isOrganizerSession(organizerSessionData.session));
     adminDb.auth.onAuthStateChange((event, session) => {
       if (event === 'SIGNED_OUT') setOrganizerMode(false);
       else if (isOrganizerSession(session)) setOrganizerMode(true);
     });
-    db.auth.onAuthStateChange((event, session) => { if (session?.access_token) setTimeout(() => db.realtime.setAuth(session.access_token), 0); });
-    await ensureVisitorSession();
-    await loadStops();
-    db.channel('halloween-stops').on('postgres_changes', { event: '*', schema: 'public', table: 'stops' }, applyStopChange).subscribe((state) => {
-      if (state === 'SUBSCRIBED') { status('● Neighborhood map is live · New homes appear automatically.', true); loadStops().catch(() => status('Could not refresh homes. Check your connection.')); }
-      else if (['CHANNEL_ERROR', 'TIMED_OUT', 'CLOSED'].includes(state)) status('Reconnecting · New homes may be delayed.');
+    db.auth.onAuthStateChange((event, session) => {
+      currentUserId = session?.user?.id || null;
     });
+    adminDb.auth.getSession().then(({ data }) => setOrganizerMode(isOrganizerSession(data.session)))
+      .catch(() => setOrganizerMode(false));
     setInterval(() => {
       if (!document.hidden) loadStops().catch(() => status('Offline · Showing the last loaded homes.'));
     }, 120000 + Math.floor(Math.random() * 30000));
+    await loadStops();
     const requested = new URLSearchParams(location.search).get('stop');
     if (requested) showDetail(requested);
   } catch { status('Could not connect to the neighborhood map. Please try reloading.'); render(); }
